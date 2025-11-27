@@ -27,7 +27,7 @@ This project creates a Raspberry Pi 5 digital CTA train arrival display with the
 /home/bilal/cta-frame
 │
 ├── cta-display.py
-├── start-cta.sh
+├── autostart-cta.sh
 ├── photo_backend.py
 │
 ├── background/
@@ -129,7 +129,7 @@ sudo systemctl start cloudflared
 
 ### Autostart Script
 
-**Location:** `/home/bilal/cta-frame/start-cta.sh`
+**Location:** `/home/bilal/cta-frame/autostart-cta.sh`
 
 ```bash
 #!/bin/bash
@@ -163,7 +163,7 @@ python3 cta-display.py >> "$DISPLAY_LOG" 2>&1
 [Desktop Entry]
 Type=Application
 Name=CTA Display
-Exec=/home/bilal/cta-frame/start-cta.sh
+Exec=/home/bilal/cta-frame/autostart-cta.sh
 X-GNOME-Autostart-enabled=true
 ```
 ## 7. Kiosk Mode (No Taskbar)
@@ -197,7 +197,7 @@ Working state was achieved by:
 ### ✔ Required files to restore:
 - `cta-display.py`
 - `photo_backend.py`
-- `start-cta.sh`
+- `autostart-cta.sh`
 - `cta-env` (optional)
 - `~/.config/autostart/cta-display.desktop`
 - `/etc/cloudflared/config.yml`
