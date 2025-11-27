@@ -2,5 +2,6 @@
 
 .env
 venv/
+.venv/
 
 *.log

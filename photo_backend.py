@@ -29,114 +29,269 @@ ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp", "HEIC", "heic"}
 UPLOAD_FORM_HTML = """
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>CTA Background Upload</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    body {
-      margin: 0;
-      padding: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #050510;
-      color: #f5f5f5;
-    }
-    .container {
-      max-width: 420px;
-      margin: 24px auto;
-      padding: 24px 18px;
-      border-radius: 16px;
-      background: linear-gradient(145deg, #11111f, #050510);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.6);
-    }
-    h1 {
-      margin: 0 0 4px;
-      font-size: 1.6rem;
-    }
-    p.subtitle {
-      margin: 0 0 16px;
-      font-size: 0.9rem;
-      color: #aaa;
-    }
-    label {
-      display: block;
-      margin-top: 12px;
-      margin-bottom: 4px;
-      font-size: 0.85rem;
-      color: #ccc;
-    }
-    input[type="file"] {
-      width: 100%;
-      font-size: 1rem;
-      padding: 8px;
-      border-radius: 10px;
-      border: 1px solid #333;
-      background: #181824;
-      color: #f5f5f5;
-      box-sizing: border-box;
-    }
-    button {
-      margin-top: 16px;
-      width: 100%;
-      padding: 10px 12px;
-      font-size: 1rem;
-      font-weight: 600;
-      border-radius: 999px;
-      border: none;
-      cursor: pointer;
-      background: #4b8bff;
-      color: #fff;
-      box-shadow: 0 6px 20px rgba(75,139,255,0.5);
-    }
-    button:disabled {
-      opacity: 0.6;
-      cursor: default;
-      box-shadow: none;
-    }
-    .banner {
-      margin-bottom: 8px;
-      padding: 8px 10px;
-      border-radius: 8px;
-      font-size: 0.9rem;
-    }
-    .success {
-      background: rgba(60, 179, 113, 0.15);
-      border: 1px solid rgba(60, 179, 113, 0.6);
-    }
-    .error {
-      background: rgba(255, 69, 58, 0.15);
-      border: 1px solid rgba(255, 69, 58, 0.6);
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>CTA Screen Background</h1>
-    <p class="subtitle">Send a photo to use as the CTA display background.</p>
+	<head>
+		<meta charset="UTF-8" />
+		<title>CTA Background Upload</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<style>
+			body {
+				margin: 0;
+				padding: 0;
+				font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+					sans-serif;
+				background-image: url(/images/henderson.png);
+				background-size: 100% 100%;
+				background-position: center center;
+				background-repeat: no-repeat;
+				min-height: 100svh;
+			}
 
-    {% if success %}
-      <div class="banner success">✅ Background updated.</div>
-    {% elif error %}
-      <div class="banner error">{{ error }}</div>
-    {% endif %}
+			/* Center the upload control */
+			.container {
+				min-height: 100svh;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				text-align: center;
+			}
 
-    <form method="POST" action="" enctype="multipart/form-data" id="upload-form">
-      <label for="photo">Choose a photo</label>
-      <input type="file" id="photo" name="photo" accept="image/*" required>
-      <button type="submit" id="submit-btn">Upload</button>
-    </form>
-  </div>
+			/* Image button resets */
+			#image-upload-btn {
+				background: transparent;
+				border: none;
+				padding: 0;
+				margin: 0;
+				line-height: 0;
+				cursor: pointer;
+				-webkit-tap-highlight-color: transparent;
+				transform: translateY(-75px);
+			}
 
-  <script>
-    const form = document.getElementById('upload-form');
-    const btn = document.getElementById('submit-btn');
+			#image-upload-btn:disabled {
+				opacity: 0.6;
+				cursor: default;
+			}
 
-    form.addEventListener('submit', () => {
-      btn.disabled = true;
-      btn.textContent = 'Uploading...';
-    });
-  </script>
-</body>
+			/* Float wrapper carries the hover animation */
+			.float-wrap {
+				display: inline-block;
+				animation: float 3s ease-in-out infinite;
+				will-change: transform;
+			}
+
+			/* Responsive red button image */
+			#red-button-img {
+				display: block;
+				width: min(60vw, 320px);
+				height: auto;
+				filter: blur(0.3px) drop-shadow(0 0 8px rgba(255, 0, 0, 0.5))
+					drop-shadow(0 0 16px rgba(255, 0, 0, 0.35));
+				will-change: transform, filter;
+			}
+
+			@media (max-width: 360px) {
+				#red-button-img {
+					width: 70vw;
+				}
+			}
+
+			/* Hover/active states: slightly stronger glow and lift */
+			#image-upload-btn:hover #red-button-img,
+			#image-upload-btn:focus-visible #red-button-img {
+				filter: blur(0.3px) drop-shadow(0 0 10px rgba(255, 0, 0, 0.7))
+					drop-shadow(0 0 20px rgba(255, 0, 0, 0.5));
+				transform: translateY(-3px);
+			}
+
+			#image-upload-btn:active #red-button-img {
+				transform: translateY(4px);
+				filter: blur(0.3px) drop-shadow(0 0 12px rgba(255, 0, 0, 0.8))
+					drop-shadow(0 0 24px rgba(255, 0, 0, 0.6));
+			}
+
+			/* Gentle float animation */
+			@keyframes float {
+				0% {
+					transform: translateY(0);
+				}
+				50% {
+					transform: translateY(-6px);
+				}
+				100% {
+					transform: translateY(0);
+				}
+			}
+
+			/* Respect reduced motion */
+			@media (prefers-reduced-motion: reduce) {
+				.float-wrap {
+					animation: none;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<div class="container" style="text-align: center">
+			<button
+				id="image-upload-btn"
+				type="button"
+				aria-label="Upload background"
+				style="background-color: transparent; border: none"
+			>
+				<span class="float-wrap">
+					<img id="red-button-img" src="/images/redbutton.png" alt="Upload" />
+				</span>
+			</button>
+
+			<form
+				method="POST"
+				action=""
+				enctype="multipart/form-data"
+				id="upload-form"
+			>
+				<input
+					type="file"
+					id="photo"
+					name="photo"
+					accept="image/*"
+					required
+					style="display: none"
+				/>
+			</form>
+		</div>
+
+		<script>
+			const form = document.getElementById("upload-form");
+			const fileInput = document.getElementById("photo");
+			const imageButton = document.getElementById("image-upload-btn");
+
+			imageButton.addEventListener("click", () => {
+				fileInput.click();
+			});
+
+			fileInput.addEventListener("change", (e) => {
+				if (fileInput.files && fileInput.files.length > 0) {
+					const file = fileInput.files[0];
+					const reader = new FileReader();
+					const containerWidth = 320;
+					const containerHeight = 240;
+					const imageWidth = 280;
+					const imageHeight = 200;
+
+					reader.onload = function (e) {
+						imageButton.innerHTML = `
+							<div style="position: relative; width: ${containerWidth}px; height: ${containerHeight}px; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box;">
+								<div style="color: #fff; font-size: 1.2rem; font-weight: 600; text-align: center;">Thank you!</div>
+							</div>
+						`;
+
+						const formData = new FormData(form);
+
+						fetch(form.action || window.location.href, {
+							method: "POST",
+							body: formData,
+						})
+							.then((response) => response.text())
+							.then(() => {
+								imageButton.innerHTML = `
+								<div style="position: relative; width: ${containerWidth}px; height: ${containerHeight}px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; gap: 10px;">
+									<div style="color: #fff; font-size: 1.2rem; font-weight: 600; text-align: center;">Background updated!</div>
+									<img src="${e.target.result}" alt="Preview" style="width: 60px; height: 60px; object-fit: contain;">
+								</div>
+							`;
+
+								// Start flying images animation
+								startFlyingImages();
+							})
+							.catch((error) => {
+								console.error("Upload failed:", error);
+								imageButton.innerHTML = `
+								<div style="position: relative; width: ${containerWidth}px; height: ${containerHeight}px; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box;">
+									<div style="color: #ff6b6b; font-size: 1.2rem; font-weight: 600; text-align: center;">Upload failed</div>
+								</div>
+							`;
+							});
+					};
+
+					reader.readAsDataURL(file);
+				}
+			});
+
+			// Flying images animation function
+			function startFlyingImages() {
+				const images = [
+					"/images/joey.png",
+					"/images/bilal.png",
+					"/images/clark.png",
+					"/images/harry.png",
+				];
+
+				let counter = 0;
+				for (let i = 0; i < 10; i++) {
+					images.forEach((src) => {
+						setTimeout(() => {
+							createFlyingImage(src);
+						}, counter * 150);
+						counter++;
+					});
+				}
+			}
+
+			function createFlyingImage(src) {
+				const img = document.createElement("img");
+				img.src = src;
+				img.style.cssText = `
+					position: fixed;
+					top: ${Math.random() * 90}%;
+					width: 150px;
+					height: 150px;
+					object-fit: contain;
+					z-index: 1000;
+					pointer-events: none;
+				`;
+
+				// Random direction: right to left or left to right
+				const direction = Math.random() > 0.5 ? "rtl" : "ltr";
+				if (direction === "rtl") {
+					img.style.right = "-200px";
+					img.style.animation = "flyRightToLeft 3s linear forwards";
+				} else {
+					img.style.left = "-200px";
+					img.style.animation = "flyLeftToRight 3s linear forwards";
+				}
+
+				document.body.appendChild(img);
+
+				// Remove image after animation completes
+				setTimeout(() => {
+					img.remove();
+				}, 3000);
+			}
+
+			// Add CSS animations
+			const style = document.createElement("style");
+			style.textContent = `
+				@keyframes flyRightToLeft {
+					from {
+						transform: translateX(0) rotate(0deg);
+					}
+					to {
+						transform: translateX(-120vw) rotate(720deg);
+					}
+				}
+				
+				@keyframes flyLeftToRight {
+					from {
+						transform: translateX(0) rotate(0deg);
+					}
+					to {
+						transform: translateX(120vw) rotate(720deg);
+					}
+				}
+			`;
+			document.head.appendChild(style);
+		</script>
+	</body>
 </html>
 """
 
