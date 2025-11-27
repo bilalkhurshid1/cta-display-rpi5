@@ -1,0 +1,6 @@
+flask
+requests
+python-dateutil
+Pillow
+numpy
+python-dotenv
