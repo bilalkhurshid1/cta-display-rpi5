@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import os
 from datetime import datetime
-from flask import Flask, request, render_template_string, abort
+from flask import Flask, request, render_template_string, abort, send_from_directory
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
@@ -339,6 +339,13 @@ def upload(secret: str):
 @app.route("/health", methods=["GET"])
 def health():
     return {"status": "ok"}, 200
+
+
+@app.route("/images/<path:filename>")
+def serve_image(filename):
+    """Serve images from the images directory"""
+    images_dir = os.path.join(BASE_DIR, "images")
+    return send_from_directory(images_dir, filename)
 
 
 if __name__ == "__main__":
