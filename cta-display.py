@@ -30,6 +30,7 @@ BACKGROUND_PATH = "/home/bilal/cta-display-rpi5/background/current.jpg"
 
 root = tk.Tk()
 root.title("CTA Display")
+root.overrideredirect(True)  # Remove window decorations (title bar)
 root.attributes("-fullscreen", True)
 root.attributes("-topmost", True)
 root.attributes("-zoomed", True)
