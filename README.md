@@ -1,8 +1,5 @@
 # CTA Frame Project - Technical Documentation
 
-> Complete technical state of project (working fullscreen on reboot)  
-> Brain dump / migration reference
-
 ## 1. Project Overview
 
 This project creates a Raspberry Pi 5 digital CTA train arrival display with the following capabilities:
@@ -14,7 +11,7 @@ This project creates a Raspberry Pi 5 digital CTA train arrival display with the
   - Primary next train ETA
   - Secondary train ETA
 - **Dynamic text color** that adjusts to background luminance
-- **Background image** loaded from: `/home/bilal/cta-frame/background/current.jpg`
+- **Background image** loaded from: `/home/bilal/cta-display-rpi5/background/current.jpg`
 - **Background image upload** through a Flask backend, protected by a secret token, and exposed globally using Cloudflare Tunnel
 - **System autostarts** both:
   - `cta-display.py` (GUI)
@@ -24,19 +21,34 @@ This project creates a Raspberry Pi 5 digital CTA train arrival display with the
 ## 2. Directory Structure (Final Working State)
 
 ```
-/home/bilal/cta-frame
+/home/bilal/cta-display-rpi5
 │
 ├── cta-display.py
-├── autostart-cta.sh
 ├── photo_backend.py
+├── autostart-cta.sh
+├── run-cta.sh
+├── CLOUDFLARE_QUICK_START.sh
+├── check-tunnel.sh
+│
+├── requirements.txt
+├── .env
+├── .gitignore
 │
 ├── background/
 │   └── current.jpg
 │
-├── cta.log
-├── photo_backend.log
+├── images/
+│   ├── henderson.png (background for upload page)
+│   ├── redbutton.png
+│   ├── bilal.png (flying animation)
+│   ├── joey.png (flying animation)
+│   ├── clark.png (flying animation)
+│   └── harry.png (flying animation)
 │
-└── .env (optional)
+├── venv/ (Python virtual environment)
+│
+├── cta.log
+└── photo_backend.log
 ```
 
 ## 3. The GUI Application (cta-display.py)
@@ -45,7 +57,7 @@ This project creates a Raspberry Pi 5 digital CTA train arrival display with the
 
 - **Full-screen Tk window** (`-fullscreen`, `-topmost`, `-zoomed`)
 - **Canvas as background holder**
-- **Labels drawn over the image** instead of canvas text
+- **Canvas text** for overlay content
 - **Automatic background reload** when file mtime changes
 - **Background sampled for luminance**, determines text theme:
   - Light background → black text
@@ -54,6 +66,8 @@ This project creates a Raspberry Pi 5 digital CTA train arrival display with the
   - `http://lapi.transitchicago.com/api/1.0/ttarrivals.aspx`
 - **Robust error handling** that prevents crashing
 - **Graceful fallback text** ("No Data", "No trains", etc.)
+- **Environment variable configuration** using `.env` file for API keys
+- **Escape key** to exit (for debugging)
 
 ### Luminance logic:
 
@@ -67,9 +81,12 @@ lum = mean(0.2126*r + 0.7152*g + 0.0722*b)
 ## 4. Image Upload Backend (photo_backend.py)
 
 - **Flask server** running on port `5001`
-- **Route:** `/upload/<SECRET_TOKEN>`
+- **Routes:**
+  - `/upload/<SECRET_TOKEN>` - Upload endpoint
+  - `/health` - Health check endpoint
+  - `/images/<filename>` - Serves images from `images/` directory
 - **Accepts any of:**
-  - JPG
+  - JPG/JPEG
   - PNG
   - GIF
   - WebP
@@ -77,9 +94,14 @@ lum = mean(0.2126*r + 0.7152*g + 0.0722*b)
 - **Saves as:**
   - `background/tmp-<timestamp>-<filename>`
   - Then atomically: `os.replace(tmp_path, BG_PATH)`
-- **HTML upload form** with drag-and-drop
+- **Enhanced HTML upload form** with:
+  - Beautiful UI with background image (`henderson.png`)
+  - Animated red button with floating effect
+  - Drag-and-drop support
+  - Flying images animation on successful upload (bilal.png, joey.png, clark.png, harry.png)
+  - Inline preview and feedback
 
-> **Important note:** `SECRET_TOKEN` must either be hardcoded or loaded from environment.
+> **Important note:** `UPLOAD_TOKEN` is loaded from `.env` file.
 
 ## 5. Cloudflare Tunnel Setup (Working State)
 
@@ -92,13 +114,23 @@ lum = mean(0.2126*r + 0.7152*g + 0.0722*b)
 
 ```yaml
 tunnel: 6e8543a9-6611-4286-b612-3d813c110e0e
-credentials-file: /etc/cloudflared/6e8543a9-6611-4286-b612-3d813c110e0e.json
+credentials-file: /home/bilal/.cloudflared/6e8543a9-6611-4286-b612-3d813c110e0e.json
 
 ingress:
   - hostname: frame.snappify.cc
     service: http://localhost:5001
   - service: http_status:404
 ```
+
+### Quick Setup and Health Check Scripts
+
+- **`CLOUDFLARE_QUICK_START.sh`**: Automated setup script that guides through the entire Cloudflare tunnel setup process
+- **`check-tunnel.sh`**: Comprehensive health check script that verifies:
+  - Flask backend is running
+  - Cloudflare tunnel service status
+  - Public endpoint accessibility
+  - DNS configuration
+  - Configuration files
 
 ### Systemd service
 
@@ -129,31 +161,26 @@ sudo systemctl start cloudflared
 
 ### Autostart Script
 
-**Location:** `/home/bilal/cta-frame/autostart-cta.sh`
+**Location:** `/home/bilal/cta-display-rpi5/autostart-cta.sh`
 
-```bash
-#!/bin/bash
-set -e
+Enhanced version with:
+- Waits for X server to be ready (up to 30 seconds)
+- Waits for network connectivity (up to 30 seconds)
+- Kills taskbars/panels multiple times to ensure kiosk mode
+- Starts continuous panel killer background process
+- Uses `unclutter` to hide mouse cursor
+- Disables screen blanking and power management
+- Comprehensive logging with timestamps
+- Better process management
 
-APP_DIR="/home/bilal/cta-frame"
-DISPLAY_LOG="$APP_DIR/cta.log"
-BACKEND_LOG="$APP_DIR/photo_backend.log"
+### Manual Run Script
 
-sleep 12
+**Location:** `/home/bilal/cta-display-rpi5/run-cta.sh`
 
-export DISPLAY=:0
-export XAUTHORITY=/home/bilal/.Xauthority
-
-cd "$APP_DIR"
-
-if ! pgrep -f "photo_backend.py" > /dev/null; then
-    echo "[start-cta] Starting photo_backend.py" >> "$BACKEND_LOG"
-    python3 photo_backend.py >> "$BACKEND_LOG" 2>&1 &
-fi
-
-echo "[start-cta] Starting cta-display.py" >> "$DISPLAY_LOG"
-python3 cta-display.py >> "$DISPLAY_LOG" 2>&1
-```
+Simplified script for manually running the display (without autostart):
+- Sets up kiosk mode
+- Hides cursor and taskbars
+- Runs display in foreground with logging
 
 ### Desktop Entry File
 
@@ -163,7 +190,7 @@ python3 cta-display.py >> "$DISPLAY_LOG" 2>&1
 [Desktop Entry]
 Type=Application
 Name=CTA Display
-Exec=/home/bilal/cta-frame/autostart-cta.sh
+Exec=/home/bilal/cta-display-rpi5/autostart-cta.sh
 X-GNOME-Autostart-enabled=true
 ```
 ## 7. Kiosk Mode (No Taskbar)
@@ -198,51 +225,106 @@ Working state was achieved by:
 - `cta-display.py`
 - `photo_backend.py`
 - `autostart-cta.sh`
-- `cta-env` (optional)
+- `run-cta.sh`
+- `CLOUDFLARE_QUICK_START.sh`
+- `check-tunnel.sh`
+- `requirements.txt`
+- `.env` (with `CTA_KEY` and `UPLOAD_TOKEN`)
+- `.gitignore`
+- `images/` directory with all PNG files
 - `~/.config/autostart/cta-display.desktop`
 - `/etc/cloudflared/config.yml`
-- `/etc/cloudflared/<ID>.json`
+- `~/.cloudflared/<ID>.json`
 
-### ✔ Required system packages:
+### ✔ Python dependencies (via requirements.txt):
 ```bash
-sudo apt install python3-pil.imagetk python3-numpy python3-requests \
-    python3-dateutil python3-flask cloudflared
+pip3 install -r requirements.txt
 ```
 
+Or install system packages:
+```bash
+sudo apt install python3-pil.imagetk python3-numpy python3-requests \
+    python3-dateutil python3-flask python3-dotenv unclutter
+```
+
+### ✔ Cloudflare setup:
+Use the automated setup script:
+```bash
+./CLOUDFLARE_QUICK_START.sh
+```
+
+Or follow manual steps in the script.
+
 ### ✔ Kiosk mode setup:
-- Disable LXPanel or hide panel
+- Install `unclutter` for cursor hiding
+- Autostart script handles panel killing
 - Enable autostart desktop entry
 
-### ✔ API key:
-```python
-CTA_KEY = "bfc31d046ce64491815093ebf7ae09d7"
+### ✔ Environment variables (.env file):
+```bash
+CTA_KEY=bfc31d046ce64491815093ebf7ae09d7
+UPLOAD_TOKEN=<your_secret_token_here>
 ```
 
 ### ✔ Required directories:
 ```bash
-mkdir -p /home/bilal/cta-frame/background
+mkdir -p /home/bilal/cta-display-rpi5/background
+mkdir -p /home/bilal/cta-display-rpi5/images
 mkdir -p ~/.config/autostart
 ```
-## 10. Known Good Behaviors Before Breakage
+
+### ✔ Health check:
+```bash
+./check-tunnel.sh
+```
+## 10. Recent Improvements
+
+### Code Quality & Configuration
+- ✅ **Environment variables**: Moved secrets to `.env` file (CTA_KEY, UPLOAD_TOKEN)
+- ✅ **Virtual environment**: Added `venv/` for isolated Python dependencies
+- ✅ **Requirements file**: Added `requirements.txt` for easy dependency management
+- ✅ **Git integration**: Added `.gitignore` to exclude sensitive files
+
+### User Interface Enhancements
+- ✅ **Enhanced upload UI**: Beautiful background image with animated red button
+- ✅ **Flying images animation**: Fun post-upload animation with character images
+- ✅ **Image serving**: Backend now serves static images from `/images/` directory
+- ✅ **Better feedback**: Inline preview and status messages on upload
+
+### Operational Improvements
+- ✅ **Automated Cloudflare setup**: `CLOUDFLARE_QUICK_START.sh` script
+- ✅ **Health check script**: `check-tunnel.sh` for comprehensive diagnostics
+- ✅ **Manual run script**: `run-cta.sh` for testing without autostart
+- ✅ **Robust autostart**: Enhanced with X server wait, network wait, and better kiosk mode
+- ✅ **Cursor hiding**: Uses `unclutter` to hide mouse cursor
+- ✅ **Screen blanking prevention**: Disables DPMS and screen blanking
+- ✅ **Continuous panel killer**: Background process to maintain kiosk mode
+- ✅ **Health endpoint**: `/health` route for monitoring backend status
+
+## 11. Known Good Behaviors
 
 - ✅ Background successfully updated via Cloudflare
 - ✅ GUI always fullscreen on boot
-- ✅ No taskbar visible
+- ✅ No taskbar visible (continuously enforced)
+- ✅ No mouse cursor visible
 - ✅ API data updated every 15 seconds
 - ✅ Text switched colors based on background brightness
-- ✅ No crashes
+- ✅ No crashes with robust error handling
 - ✅ Cloudflare tunnel stable and auto-restarting via systemd
-- ✅ Upload endpoint protected by secret token
+- ✅ Upload endpoint protected by secret token from .env
+- ✅ Screen never blanks or goes to sleep
 
-## 11. Remaining Improvements Not Implemented
+## 12. Potential Future Improvements
 
-- 📝 Add drop shadow text for more clarity
-- 📝 Add offline visual indicator
+- 📝 Add drop shadow/outline to text for better visibility on any background
+- 📝 Add offline visual indicator when CTA API is unreachable
 - 📝 Add local caching of last successful train ETA
-- 📝 Add web UI to change polling frequency
+- 📝 Add web UI to change polling frequency or station
+- 📝 Add support for multiple stations/routes
+- 📝 Display service alerts or announcements
 - 📝 HTTPS termination directly on Pi instead of Cloudflare (optional)
 
-## 12. Conclusion
+## 13. Conclusion
 
 This document captures the exact state of the project at the moment everything was stable:
 
@@ -253,5 +335,3 @@ This document captures the exact state of the project at the moment everything w
 - ✅ Cloudflare tunnel correctly configured
 - ✅ Dynamic text color
 - ✅ Background auto-refresh
-
-**You can now re-create the environment from scratch safely.**
