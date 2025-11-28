@@ -18,7 +18,7 @@ This project creates a Raspberry Pi 5 digital CTA train arrival display with the
   - `photo_backend.py` (upload API)
 - **Fullscreen + no taskbar** on reboot (Kiosk mode)
 
-## 2. Directory Structure (Final Working State)
+## 2. Directory Structure (Final Working State) 
 
 ```
 /home/bilal/cta-display-rpi5
