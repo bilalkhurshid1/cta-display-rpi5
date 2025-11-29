@@ -7,6 +7,7 @@ CTA Train ETA Display (Raspberry Pi 5 + 7" touchscreen)
 - Text overlay shows next Brown Line → Loop trains at Paulina
 """
 import os
+import random
 from datetime import datetime
 import tkinter as tk
 import requests
@@ -50,6 +51,10 @@ canvas = tk.Canvas(
 )
 canvas.pack(fill="both", expand=True)
 
+# Bind touch/click handlers
+canvas.bind("<Button-1>", lambda e: on_touch(e.x, e.y))
+canvas.bind("<B1-Motion>", lambda e: on_touch(e.x, e.y))
+
 # Background image state
 background_image = None
 background_mtime = 0
@@ -80,6 +85,99 @@ secondary_id = canvas.create_text(
     font=("Helvetica", 28),
     fill="white",
 )
+
+# === BUBBLE TOUCH ANIMATION ===
+
+bubbles = []  # List of bubble dicts: {id, x, y, vx, vy, age, max_age}
+bubble_anim_running = False
+
+
+def spawn_bubbles(x, y):
+    """Spawn 3-5 bubbles around the touch point."""
+    count = random.randint(3, 5)
+    for _ in range(count):
+        # Random offset from touch point
+        offset_x = random.randint(-20, 20)
+        offset_y = random.randint(-20, 20)
+        bubble_x = x + offset_x
+        bubble_y = y + offset_y
+        
+        # Bubble properties
+        radius = random.randint(8, 16)
+        color = random.choice(["#4A90E2", "#50C878", "#FFD700", "#FF6B9D", "#9B59B6"])
+        
+        # Create oval on canvas
+        bubble_id = canvas.create_oval(
+            bubble_x - radius, bubble_y - radius,
+            bubble_x + radius, bubble_y + radius,
+            fill=color, outline="", width=0
+        )
+        
+        # Movement properties
+        vx = random.uniform(-1.5, 1.5)  # Horizontal drift
+        vy = random.uniform(-3, -5)     # Upward velocity
+        max_age = random.randint(60, 90)  # Lifespan in frames (~2-3 seconds at 30fps)
+        
+        bubbles.append({
+            "id": bubble_id,
+            "x": bubble_x,
+            "y": bubble_y,
+            "vx": vx,
+            "vy": vy,
+            "age": 0,
+            "max_age": max_age,
+        })
+    
+    # Start animation if not already running
+    global bubble_anim_running
+    if not bubble_anim_running:
+        bubble_anim_running = True
+        animate_bubbles()
+
+
+def animate_bubbles():
+    """Update all bubbles: move, age, and remove expired ones."""
+    global bubble_anim_running
+    
+    to_remove = []
+    
+    for bubble in bubbles:
+        bubble["age"] += 1
+        
+        # Remove if expired
+        if bubble["age"] >= bubble["max_age"]:
+            canvas.delete(bubble["id"])
+            to_remove.append(bubble)
+            continue
+        
+        # Update position
+        bubble["x"] += bubble["vx"]
+        bubble["y"] += bubble["vy"]
+        
+        # Move on canvas
+        canvas.coords(
+            bubble["id"],
+            bubble["x"] - 12, bubble["y"] - 12,
+            bubble["x"] + 12, bubble["y"] + 12
+        )
+        
+        # Fade out effect (optional - adjust opacity via color alpha)
+        # For simplicity, we just delete at max_age
+    
+    # Remove expired bubbles from list
+    for bubble in to_remove:
+        bubbles.remove(bubble)
+    
+    # Continue animation if bubbles remain
+    if bubbles:
+        root.after(33, animate_bubbles)  # ~30fps
+    else:
+        bubble_anim_running = False
+
+
+def on_touch(x, y):
+    """Handle touch/click events."""
+    spawn_bubbles(x, y)
 
 
 # === LUMINANCE / TEXT THEME HELPERS ===
