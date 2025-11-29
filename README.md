@@ -40,10 +40,14 @@ This project creates a Raspberry Pi 5 digital CTA train arrival display with the
 ├── images/
 │   ├── henderson.png (background for upload page)
 │   ├── redbutton.png
+│   ├── default.jpg (default background image)
 │   ├── bilal.png (flying animation)
 │   ├── joey.png (flying animation)
 │   ├── clark.png (flying animation)
 │   └── harry.png (flying animation)
+│
+├── templates/
+│   └── upload.html (Flask template for upload UI)
 │
 ├── venv/ (Python virtual environment)
 │
@@ -80,26 +84,58 @@ lum = mean(0.2126*r + 0.7152*g + 0.0722*b)
 
 ## 4. Image Upload Backend (photo_backend.py)
 
+### Flask Application Structure
+
 - **Flask server** running on port `5001`
-- **Routes:**
-  - `/upload/<SECRET_TOKEN>` - Upload endpoint
-  - `/health` - Health check endpoint
-  - `/images/<filename>` - Serves images from `images/` directory
-- **Accepts any of:**
-  - JPG/JPEG
-  - PNG
-  - GIF
-  - WebP
-  - HEIC
-- **Saves as:**
-  - `background/tmp-<timestamp>-<filename>`
-  - Then atomically: `os.replace(tmp_path, BG_PATH)`
-- **Enhanced HTML upload form** with:
-  - Beautiful UI with background image (`henderson.png`)
-  - Animated red button with floating effect
-  - Drag-and-drop support
-  - Flying images animation on successful upload (bilal.png, joey.png, clark.png, harry.png)
-  - Inline preview and feedback
+- **Refactored with Flask templates** using `templates/` directory
+- **Template rendering** via `render_template()` for better separation of concerns
+
+### API Routes
+
+- **`/upload/<SECRET_TOKEN>`** - Upload endpoint (GET shows UI, POST processes upload)
+- **`/reset/<SECRET_TOKEN>`** - Reset background to default image (POST)
+- **`/health`** - Health check endpoint
+- **`/images/<filename>`** - Serves static images from `images/` directory
+
+### Supported Image Formats
+
+- JPG/JPEG
+- PNG
+- GIF
+- WebP
+- HEIC
+
+### Upload Process
+
+1. File validation using `secure_filename()` and extension check
+2. Temporary save to `background/tmp-<timestamp>-<filename>`
+3. Atomic replacement: `os.replace(tmp_path, BG_PATH)`
+4. Instant background update detected by GUI via mtime change
+
+### Enhanced Upload UI (templates/upload.html)
+
+#### Visual Design
+- **Henderson background image** covering entire viewport
+- **Animated red button** with floating animation and glow effects
+- **Responsive design** adapts to mobile and desktop screens
+- **Accessibility features** including ARIA labels and reduced motion support
+
+#### Interactive Features
+- **Floating animation**: Gentle up-and-down motion on the upload button
+- **Hover effects**: Enhanced glow and lift on interaction
+- **Flying images animation**: Character images (bilal, joey, clark, harry) fly across screen on successful upload
+  - 40 total images (10 iterations × 4 characters)
+  - Random positioning and bi-directional animation
+  - 720-degree rotation during flight
+  - 3-second animation duration
+- **Live feedback**: "Thank you!" → "Background updated!" with thumbnail preview
+- **Reset button**: Fixed position button to restore default background
+
+#### Animation System
+- **CSS keyframe animations** for smooth floating effect
+- **JavaScript-generated flying images** with dynamic positioning
+- **Automatic cleanup** removes animated elements after completion
+- **Respects `prefers-reduced-motion`** for accessibility
 
 > **Important note:** `UPLOAD_TOKEN` is loaded from `.env` file.
 
@@ -231,7 +267,8 @@ Working state was achieved by:
 - `requirements.txt`
 - `.env` (with `CTA_KEY` and `UPLOAD_TOKEN`)
 - `.gitignore`
-- `images/` directory with all PNG files
+- `templates/` directory with `upload.html` template
+- `images/` directory with all PNG files (henderson.png, redbutton.png, default.jpg, character PNGs)
 - `~/.config/autostart/cta-display.desktop`
 - `/etc/cloudflared/config.yml`
 - `~/.cloudflared/<ID>.json`
@@ -270,6 +307,7 @@ UPLOAD_TOKEN=<your_secret_token_here>
 ```bash
 mkdir -p /home/bilal/cta-display-rpi5/background
 mkdir -p /home/bilal/cta-display-rpi5/images
+mkdir -p /home/bilal/cta-display-rpi5/templates
 mkdir -p ~/.config/autostart
 ```
 
@@ -286,10 +324,18 @@ mkdir -p ~/.config/autostart
 - ✅ **Git integration**: Added `.gitignore` to exclude sensitive files
 
 ### User Interface Enhancements
-- ✅ **Enhanced upload UI**: Beautiful background image with animated red button
-- ✅ **Flying images animation**: Fun post-upload animation with character images
-- ✅ **Image serving**: Backend now serves static images from `/images/` directory
-- ✅ **Better feedback**: Inline preview and status messages on upload
+- ✅ **Refactored Flask templates**: Moved HTML to `templates/upload.html` for better code organization
+- ✅ **Enhanced upload UI**: Beautiful henderson.png background with animated red button
+- ✅ **Floating animation**: Gentle up-and-down motion with CSS keyframes
+- ✅ **Glow effects**: Dynamic drop-shadow effects on hover and active states
+- ✅ **Flying images animation**: 40 character images fly across screen on successful upload
+  - Random vertical positioning and bi-directional movement
+  - 720-degree rotation during 3-second flight
+  - Automatic cleanup after animation
+- ✅ **Reset functionality**: One-click button to restore default background
+- ✅ **Image serving**: Backend serves static images from `/images/` directory
+- ✅ **Better feedback**: "Thank you!" → "Background updated!" with thumbnail preview
+- ✅ **Accessibility**: ARIA labels and reduced motion support
 
 ### Operational Improvements
 - ✅ **Automated Cloudflare setup**: `CLOUDFLARE_QUICK_START.sh` script
