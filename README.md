@@ -1,94 +1,136 @@
 # CTA Frame Project - Technical Documentation
 
+**Modular, Production-Ready Architecture** | Raspberry Pi 5 | 7" Touchscreen Display
+
 ## 1. Project Overview
 
-This project creates a Raspberry Pi 5 digital CTA train arrival display with the following capabilities:
+This project creates a Raspberry Pi 5 digital CTA train arrival display with a **clean, modular architecture** designed for maintainability and extensibility.
+
+### Core Capabilities
 
 - **Fullscreen Tkinter GUI** that fills a 7" Raspberry Pi touchscreen
-- **Uses the CTA Train Tracker API**
-- **Displays:**
+- **CTA Train Tracker API Integration** with real-time arrival data
+- **Live Display Information:**
   - Station title: Paulina → Loop
-  - Primary next train ETA
-  - Secondary train ETA
-- **Dynamic text color** that adjusts to background luminance
-- **Background image** loaded from: `/home/bilal/cta-display-rpi5/background/current.jpg`
-- **Background image upload** through a Flask backend, protected by a secret token, and exposed globally using Cloudflare Tunnel
-- **System autostarts** both:
-  - `cta-display.py` (GUI)
-  - `photo_backend.py` (upload API)
-- **Fullscreen + no taskbar** on reboot (Kiosk mode)
+  - Primary next train ETA (large, bold)
+  - Secondary train ETA (smaller)
+- **Interactive Features:**
+  - Touch animations with bubble effects
+  - Smooth ripple transitions
+  - Dynamic text color adapting to background brightness
+- **Remote Image Upload:**
+  - Flask backend with beautiful web UI
+  - Protected by secret token authentication
+  - Exposed globally via Cloudflare Tunnel
+- **Production Features:**
+  - Modular Python architecture (4 specialized modules)
+  - Type hints throughout for IDE support
+  - Clean separation of concerns
+  - Robust error handling
+  - System autostart on boot
+  - Fullscreen kiosk mode (no taskbar)
 
 ## 2. Directory Structure (Final Working State) 
 
 ```
 /home/bilal/cta-display-rpi5
 │
-├── cta-display.py
-├── photo_backend.py
-├── autostart-cta.sh
-├── run-cta.sh
-├── CLOUDFLARE_QUICK_START.sh
-├── check-tunnel.sh
+├── cta-display.py           # Main application (178 lines)
+├── animations.py            # Animation effects module (180 lines)
+├── cta_api.py              # CTA API client module (90 lines)
+├── image_utils.py          # Image processing module (115 lines)
+├── photo_backend.py        # Flask upload backend (105 lines)
 │
-├── requirements.txt
-├── .env
-├── .gitignore
+├── autostart-cta.sh        # Autostart script
+├── run-cta.sh             # Manual run script
+├── cloudflare_setup.sh    # Cloudflare setup script
+├── check-tunnel.sh        # Health check script
+│
+├── requirements.txt       # Python dependencies
+├── .env                  # Environment variables (secrets)
+├── .gitignore           # Git ignore patterns
 │
 ├── background/
-│   └── current.jpg
+│   └── current.jpg       # Active background image
 │
 ├── images/
-│   ├── henderson.png (background for upload page)
-│   ├── redbutton.png
-│   ├── default.jpg (default background image)
-│   ├── bilal.png (flying animation)
-│   ├── joey.png (flying animation)
-│   ├── clark.png (flying animation)
-│   └── harry.png (flying animation)
+│   ├── henderson.png     # Upload page background
+│   ├── redbutton.png     # Upload button image
+│   ├── default.jpg       # Default background image
+│   ├── bilal.png        # Flying animation character
+│   ├── joey.png         # Flying animation character
+│   ├── clark.png        # Flying animation character
+│   └── harry.png        # Flying animation character
 │
 ├── templates/
-│   └── upload.html (Flask template for upload UI)
+│   └── upload.html       # Flask template for upload UI
 │
-├── venv/ (Python virtual environment)
+├── venv/                # Python virtual environment
 │
-├── cta.log
-└── photo_backend.log
+├── cta.log             # Display app logs
+└── photo_backend.log   # Backend app logs
 ```
 
-## 3. The GUI Application (cta-display.py)
+## 3. The GUI Application - Modular Architecture
 
-### Major features implemented:
+### Application Structure (Refactored)
 
-- **Full-screen Tk window** (`-fullscreen`, `-topmost`, `-zoomed`)
-- **Canvas as background holder**
-- **Canvas text** for overlay content
-- **Automatic background reload** when file mtime changes
-- **Background sampled for luminance**, determines text theme:
-  - Light background → black text
-  - Dark background → white text
-- **API calls every 15 seconds** using:
-  - `http://lapi.transitchicago.com/api/1.0/ttarrivals.aspx`
-- **Robust error handling** that prevents crashing
-- **Graceful fallback text** ("No Data", "No trains", etc.)
-- **Environment variable configuration** using `.env` file for API keys
-- **Escape key** to exit (for debugging)
+#### **Main Application: `cta-display.py`**
+- Application entry point and orchestration
+- Tkinter UI setup and configuration
+- Component initialization and coordination
+- Update loop and display logic
 
-### Luminance logic:
+#### **Animation Module: `animations.py`**
+- **`BubbleAnimation` class**: Touch/click bubble effects
+  - Spawns 3-5 bubbles on user interaction
+  - Animated movement with physics (velocity, drift)
+  - Automatic lifecycle management
+- **`RippleAnimation` class**: Background transition effects
+  - Ripple effect from screen center
+  - Staggered animations (3 ripples)
+  - Layered rendering above background
 
-```python
-thumb = img.resize((64, 64))
-arr = np.array(thumb)/255
-lum = mean(0.2126*r + 0.7152*g + 0.0722*b)
-# Threshold (lum > 0.55) switches theme
-```
+#### **CTA API Module: `cta_api.py`**
+- **`CTAClient` class**: Clean API abstraction
+  - Configurable route and destination filtering
+  - Robust error handling
+  - Returns structured train data
+  - Calls: `http://lapi.transitchicago.com/api/1.0/ttarrivals.aspx`
+  - Polls every 15 seconds
+
+#### **Image Utilities Module: `image_utils.py`**
+- **`BackgroundManager` class**: Background image management
+  - Automatic reload on file modification (mtime detection)
+  - Image resizing and optimization
+  - Canvas integration
+- **`compute_luminance()`**: ITU-R BT.709 brightness calculation
+  - Formula: `0.2126*R + 0.7152*G + 0.0722*B`
+  - Returns luminance in range [0, 1]
+- **`get_text_color_for_background()`**: Adaptive text theming
+  - Light background (lum > 0.55) → black text
+  - Dark background (lum ≤ 0.55) → white text
+
+### Core Features
+
+- **Full-screen Tkinter GUI** with kiosk mode
+- **Dynamic text color** adapts to background brightness
+- **Touch animations** with bubble effects
+- **Smooth transitions** with ripple animations
+- **Automatic background updates** when file changes
+- **Robust error handling** prevents crashes
+- **Graceful fallbacks**: "No Data", "No trains", etc.
+- **Environment-based configuration** via `.env` file
+- **Type hints** throughout for better IDE support
+- **Escape key** to exit (debugging)
 
 ## 4. Image Upload Backend (photo_backend.py)
 
 ### Flask Application Structure
 
 - **Flask server** running on port `5001`
-- **Refactored with Flask templates** using `templates/` directory
-- **Template rendering** via `render_template()` for better separation of concerns
+- **Template rendering** via `render_template()` for proper separation of concerns
+- **Clean Python logic**: Only application code in `.py` file
 
 ### API Routes
 
@@ -139,7 +181,7 @@ lum = mean(0.2126*r + 0.7152*g + 0.0722*b)
 
 > **Important note:** `UPLOAD_TOKEN` is loaded from `.env` file.
 
-## 5. Cloudflare Tunnel Setup (Working State)
+## 5. Cloudflare Tunnel Setup 
 
 - **Tunnel name:** `houseframe`
 - **Public domain:** `frame.snappify.cc`
@@ -258,17 +300,28 @@ Working state was achieved by:
 ## 9. Things to Reproduce for a Fresh Install
 
 ### ✔ Required files to restore:
-- `cta-display.py`
-- `photo_backend.py`
-- `autostart-cta.sh`
-- `run-cta.sh`
-- `CLOUDFLARE_QUICK_START.sh`
-- `check-tunnel.sh`
-- `requirements.txt`
+
+**Python Application Files:**
+- `cta-display.py` - Main application
+- `animations.py` - Animation effects module
+- `cta_api.py` - CTA API client module
+- `image_utils.py` - Image processing module
+- `photo_backend.py` - Flask backend
+
+**Configuration & Scripts:**
+- `autostart-cta.sh` - Autostart script
+- `run-cta.sh` - Manual run script
+- `cloudflare_setup.sh` - Cloudflare setup script
+- `check-tunnel.sh` - Health check script
+- `requirements.txt` - Python dependencies
 - `.env` (with `CTA_KEY` and `UPLOAD_TOKEN`)
-- `.gitignore`
+- `.gitignore` - Git ignore patterns
+
+**Templates & Assets:**
 - `templates/` directory with `upload.html` template
 - `images/` directory with all PNG files (henderson.png, redbutton.png, default.jpg, character PNGs)
+
+**System Configuration:**
 - `~/.config/autostart/cta-display.desktop`
 - `/etc/cloudflared/config.yml`
 - `~/.cloudflared/<ID>.json`
@@ -315,39 +368,8 @@ mkdir -p ~/.config/autostart
 ```bash
 ./check-tunnel.sh
 ```
-## 10. Recent Improvements
 
-### Code Quality & Configuration
-- ✅ **Environment variables**: Moved secrets to `.env` file (CTA_KEY, UPLOAD_TOKEN)
-- ✅ **Virtual environment**: Added `venv/` for isolated Python dependencies
-- ✅ **Requirements file**: Added `requirements.txt` for easy dependency management
-- ✅ **Git integration**: Added `.gitignore` to exclude sensitive files
-
-### User Interface Enhancements
-- ✅ **Refactored Flask templates**: Moved HTML to `templates/upload.html` for better code organization
-- ✅ **Enhanced upload UI**: Beautiful henderson.png background with animated red button
-- ✅ **Floating animation**: Gentle up-and-down motion with CSS keyframes
-- ✅ **Glow effects**: Dynamic drop-shadow effects on hover and active states
-- ✅ **Flying images animation**: 40 character images fly across screen on successful upload
-  - Random vertical positioning and bi-directional movement
-  - 720-degree rotation during 3-second flight
-  - Automatic cleanup after animation
-- ✅ **Reset functionality**: One-click button to restore default background
-- ✅ **Image serving**: Backend serves static images from `/images/` directory
-- ✅ **Better feedback**: "Thank you!" → "Background updated!" with thumbnail preview
-- ✅ **Accessibility**: ARIA labels and reduced motion support
-
-### Operational Improvements
-- ✅ **Automated Cloudflare setup**: `CLOUDFLARE_QUICK_START.sh` script
-- ✅ **Health check script**: `check-tunnel.sh` for comprehensive diagnostics
-- ✅ **Manual run script**: `run-cta.sh` for testing without autostart
-- ✅ **Robust autostart**: Enhanced with X server wait, network wait, and better kiosk mode
-- ✅ **Cursor hiding**: Uses `unclutter` to hide mouse cursor
-- ✅ **Screen blanking prevention**: Disables DPMS and screen blanking
-- ✅ **Continuous panel killer**: Background process to maintain kiosk mode
-- ✅ **Health endpoint**: `/health` route for monitoring backend status
-
-## 11. Known Good Behaviors
+## 10. Known Good Behaviors
 
 - ✅ Background successfully updated via Cloudflare
 - ✅ GUI always fullscreen on boot
@@ -355,29 +377,38 @@ mkdir -p ~/.config/autostart
 - ✅ No mouse cursor visible
 - ✅ API data updated every 15 seconds
 - ✅ Text switched colors based on background brightness
+- ✅ Touch animations working (bubble effects)
+- ✅ Ripple transitions on background changes
 - ✅ No crashes with robust error handling
 - ✅ Cloudflare tunnel stable and auto-restarting via systemd
 - ✅ Upload endpoint protected by secret token from .env
 - ✅ Screen never blanks or goes to sleep
+- ✅ Modular architecture with clean imports
+- ✅ Type hints working with IDE autocomplete
 
-## 12. Potential Future Improvements
+## 11. Potential Future Improvements
 
+- 📝 Add support for multiple stations/routes
 - 📝 Add drop shadow/outline to text for better visibility on any background
 - 📝 Add offline visual indicator when CTA API is unreachable
-- 📝 Add local caching of last successful train ETA
-- 📝 Add web UI to change polling frequency or station
-- 📝 Add support for multiple stations/routes
+- 📝 Add web UI to change station
 - 📝 Display service alerts or announcements
+- 📝 Unit tests for modules
+- 📝 Configuration file for display settings
 - 📝 HTTPS termination directly on Pi instead of Cloudflare (optional)
 
-## 13. Conclusion
+## 14. Conclusion
 
-This document captures the exact state of the project at the moment everything was stable:
+This document captures the current state of the project with **production-ready architecture**:
 
-- ✅ GUI working flawlessly
-- ✅ Fullscreen kiosk mode
-- ✅ Autostart correct
-- ✅ Upload API working
-- ✅ Cloudflare tunnel correctly configured
-- ✅ Dynamic text color
-- ✅ Background auto-refresh
+### ✅ Core Functionality
+- GUI working flawlessly
+- Fullscreen kiosk mode with continuous enforcement
+- Autostart working on boot
+- Upload API working
+- Cloudflare tunnel correctly configured
+- Dynamic text color based on background luminance
+- Background auto-refresh on file changes
+
+### 🎯 Production Ready
+The codebase is now production-ready with industry-standard architecture patterns, making it easy to maintain, extend, and debug.

@@ -7,15 +7,12 @@ CTA Train ETA Display (Raspberry Pi 5 + 7" touchscreen)
 - Text overlay shows next Brown Line → Loop trains at Paulina
 """
 import os
-import random
-from datetime import datetime
 import tkinter as tk
-import requests
-import numpy as np
-from dateutil import parser as dateparser
 from dotenv import load_dotenv
-from requests.exceptions import RequestException
-from PIL import Image, ImageTk
+
+from animations import BubbleAnimation, RippleAnimation
+from cta_api import CTAClient
+from image_utils import BackgroundManager
 
 # === CONFIG ===
 load_dotenv()
@@ -51,15 +48,6 @@ canvas = tk.Canvas(
 )
 canvas.pack(fill="both", expand=True)
 
-# Bind touch/click handlers
-canvas.bind("<Button-1>", lambda e: on_touch(e.x, e.y))
-canvas.bind("<B1-Motion>", lambda e: on_touch(e.x, e.y))
-
-# Background image state
-background_image = None
-background_mtime = 0
-background_image_id = None
-
 # === TEXT ITEMS (on the canvas) ===
 
 title_id = canvas.create_text(
@@ -86,312 +74,25 @@ secondary_id = canvas.create_text(
     fill="white",
 )
 
-# === BUBBLE TOUCH ANIMATION ===
+# === INITIALIZE COMPONENTS ===
 
-bubbles = []  # List of bubble dicts: {id, x, y, vx, vy, age, max_age}
-bubble_anim_running = False
+# Background manager
+background_manager = BackgroundManager(canvas, BACKGROUND_PATH, screen_w, screen_h)
 
+# Animation managers
+bubble_anim = BubbleAnimation(canvas, root)
+ripple_anim = None  # Will be initialized after first background load
 
-def spawn_bubbles(x, y):
-    """Spawn 3-5 bubbles around the touch point."""
-    count = random.randint(3, 5)
-    for _ in range(count):
-        # Random offset from touch point
-        offset_x = random.randint(-20, 20)
-        offset_y = random.randint(-20, 20)
-        bubble_x = x + offset_x
-        bubble_y = y + offset_y
-        
-        # Bubble properties
-        radius = random.randint(8, 16)
-        color = random.choice(["#4A90E2", "#50C878", "#FFD700", "#FF6B9D", "#9B59B6"])
-        
-        # Create oval on canvas
-        bubble_id = canvas.create_oval(
-            bubble_x - radius, bubble_y - radius,
-            bubble_x + radius, bubble_y + radius,
-            fill=color, outline="", width=0
-        )
-        
-        # Movement properties
-        vx = random.uniform(-1.5, 1.5)  # Horizontal drift
-        vy = random.uniform(-3, -5)     # Upward velocity
-        max_age = random.randint(60, 90)  # Lifespan in frames (~2-3 seconds at 30fps)
-        
-        bubbles.append({
-            "id": bubble_id,
-            "x": bubble_x,
-            "y": bubble_y,
-            "vx": vx,
-            "vy": vy,
-            "age": 0,
-            "max_age": max_age,
-        })
-    
-    # Start animation if not already running
-    global bubble_anim_running
-    if not bubble_anim_running:
-        bubble_anim_running = True
-        animate_bubbles()
+# CTA API client
+cta_client = CTAClient(CTA_KEY, PAULINA_LOOP_ROUTE_ID)
 
-
-def animate_bubbles():
-    """Update all bubbles: move, age, and remove expired ones."""
-    global bubble_anim_running
-    
-    to_remove = []
-    
-    for bubble in bubbles:
-        bubble["age"] += 1
-        
-        # Remove if expired
-        if bubble["age"] >= bubble["max_age"]:
-            canvas.delete(bubble["id"])
-            to_remove.append(bubble)
-            continue
-        
-        # Update position
-        bubble["x"] += bubble["vx"]
-        bubble["y"] += bubble["vy"]
-        
-        # Move on canvas
-        canvas.coords(
-            bubble["id"],
-            bubble["x"] - 12, bubble["y"] - 12,
-            bubble["x"] + 12, bubble["y"] + 12
-        )
-        
-        # Fade out effect (optional - adjust opacity via color alpha)
-        # For simplicity, we just delete at max_age
-    
-    # Remove expired bubbles from list
-    for bubble in to_remove:
-        bubbles.remove(bubble)
-    
-    # Continue animation if bubbles remain
-    if bubbles:
-        root.after(33, animate_bubbles)  # ~30fps
-    else:
-        bubble_anim_running = False
-
-
-def on_touch(x, y):
+# Touch/click handlers
+def on_touch(x: int, y: int):
     """Handle touch/click events."""
-    spawn_bubbles(x, y)
+    bubble_anim.spawn_bubbles(x, y)
 
-
-# === RIPPLE TRANSITION ===
-
-ripples = []  # List of ripple dicts: {id, center_x, center_y, radius, max_radius, speed}
-ripple_anim_running = False
-
-
-def start_ripple_transition():
-    """Start ripple effect from center of screen."""
-    center_x = screen_w // 2
-    center_y = screen_h // 2
-    
-    # Calculate max radius to cover entire screen from center
-    max_radius = int((screen_w**2 + screen_h**2)**0.5 / 2) + 50
-    
-    # Create 3 ripples with staggered starts
-    for i in range(3):
-        ripple_id = canvas.create_oval(
-            center_x, center_y,
-            center_x, center_y,
-            outline="white",
-            width=3,
-            fill=""
-        )
-        # Layer ripples above background but below text
-        canvas.tag_raise(ripple_id, background_image_id)
-        canvas.tag_lower(ripple_id, title_id)
-        
-        ripples.append({
-            "id": ripple_id,
-            "center_x": center_x,
-            "center_y": center_y,
-            "radius": -i * 30,  # Stagger start times
-            "max_radius": max_radius,
-            "speed": 5,  # Pixels per frame
-        })
-    
-    # Start animation if not already running
-    global ripple_anim_running
-    if not ripple_anim_running:
-        ripple_anim_running = True
-        animate_ripples()
-
-
-def animate_ripples():
-    """Update ripple expansion animation."""
-    global ripple_anim_running
-    
-    to_remove = []
-    
-    for ripple in ripples:
-        ripple["radius"] += ripple["speed"]
-        
-        # Remove if fully expanded
-        if ripple["radius"] > ripple["max_radius"]:
-            canvas.delete(ripple["id"])
-            to_remove.append(ripple)
-            continue
-        
-        # Only draw if radius is positive
-        if ripple["radius"] > 0:
-            # Update oval coordinates
-            x1 = ripple["center_x"] - ripple["radius"]
-            y1 = ripple["center_y"] - ripple["radius"]
-            x2 = ripple["center_x"] + ripple["radius"]
-            y2 = ripple["center_y"] + ripple["radius"]
-            canvas.coords(ripple["id"], x1, y1, x2, y2)
-    
-    # Remove finished ripples
-    for ripple in to_remove:
-        ripples.remove(ripple)
-    
-    # Continue animation if ripples remain
-    if ripples:
-        root.after(33, animate_ripples)  # ~30fps
-    else:
-        ripple_anim_running = False
-
-
-# === LUMINANCE / TEXT THEME HELPERS ===
-
-def compute_luminance(img: Image.Image) -> float:
-    """Return average luminance of the image in [0, 1]."""
-    thumb = img.resize((64, 64)).convert("RGB")
-    arr = np.asarray(thumb, dtype="float32") / 255.0
-    # ITU-R BT.709 luminance
-    lum = np.mean(
-        0.2126 * arr[:, :, 0]
-        + 0.7152 * arr[:, :, 1]
-        + 0.0722 * arr[:, :, 2]
-    )
-    return float(lum)
-
-
-def apply_text_theme_from_image(img: Image.Image) -> None:
-    """Choose black/white text based on background brightness."""
-    lum = compute_luminance(img)
-    is_light_bg = lum > 0.55  # tweak threshold to taste
-
-    if is_light_bg:
-        fg = "black"
-    else:
-        fg = "white"
-
-    canvas.itemconfigure(title_id, fill=fg)
-    canvas.itemconfigure(primary_id, fill=fg)
-    canvas.itemconfigure(secondary_id, fill=fg)
-
-
-# === BACKGROUND IMAGE ===
-
-def update_background_if_needed():
-    """Load / resize the background image if the file has changed."""
-    global background_image, background_mtime, background_image_id
-
-    if not os.path.exists(BACKGROUND_PATH):
-        # No image yet
-        return
-
-    try:
-        mtime = os.path.getmtime(BACKGROUND_PATH)
-    except OSError:
-        return
-
-    if mtime == background_mtime:
-        return  # no change
-
-    background_mtime = mtime
-
-    try:
-        img = Image.open(BACKGROUND_PATH).convert("RGB")
-    except Exception as e:
-        print("Error loading background:", e)
-        return
-
-    # Decide text color based on brightness of this new image
-    apply_text_theme_from_image(img)
-
-    # Resize to screen and push into Tk
-    img = img.resize((screen_w, screen_h), Image.LANCZOS)
-    background_image = ImageTk.PhotoImage(img)
-
-    if background_image_id is None:
-        background_image_id = canvas.create_image(
-            0, 0, anchor="nw", image=background_image
-        )
-    else:
-        canvas.itemconfig(background_image_id, image=background_image)
-        # Trigger ripple transition for image changes (not first load)
-        start_ripple_transition()
-
-    canvas.tag_lower(background_image_id)  # send background behind text
-
-
-# === CTA API ===
-
-def get_next_trains():
-    """
-    Return up to two upcoming Loop-bound Brown Line trains
-    as a list of dicts: {minutes, is_scheduled, is_delayed}
-    """
-    url = "http://lapi.transitchicago.com/api/1.0/ttarrivals.aspx"
-    params = {
-        "key": CTA_KEY,
-        "stpid": PAULINA_LOOP_ROUTE_ID,
-        "max": 2,
-        "outputType": "JSON",
-    }
-
-    try:
-        r = requests.get(url, params=params, timeout=10)
-        r.raise_for_status()
-    except RequestException as e:
-        print(f"Error talking to CTA API: {e}")
-        return None
-
-    try:
-        data = r.json()
-        etas = data["ctatt"]["eta"]
-    except Exception as e:
-        print(f"Error parsing CTA API response: {e}")
-        return None
-
-    now = datetime.now()
-    trains = []
-
-    for eta in etas:
-        if eta.get("rt") != "Brn":
-            continue
-
-        dest = eta.get("destNm", "").lower()
-        if "loop" not in dest:
-            continue
-
-        try:
-            arr = dateparser.parse(eta["arrT"])
-        except Exception:
-            continue
-
-        diff = int((arr - now).total_seconds() // 60)
-        if diff < 0:
-            continue
-
-        trains.append(
-            {
-                "minutes": diff,
-                "is_scheduled": str(eta.get("isSch", "0")) == "1",
-                "is_delayed": str(eta.get("isDly", "0")) == "1",
-            }
-        )
-
-    trains.sort(key=lambda t: t["minutes"])
-    return trains[:2]
+canvas.bind("<Button-1>", lambda e: on_touch(e.x, e.y))
+canvas.bind("<B1-Motion>", lambda e: on_touch(e.x, e.y))
 
 
 # === UPDATE LOOP ===
@@ -402,9 +103,28 @@ def format_minutes_text(minutes: int) -> str:
 
 
 def update():
+    global ripple_anim
+    
     try:
-        trains = get_next_trains()
-        update_background_if_needed()
+        trains = cta_client.get_next_trains()
+        was_updated, text_color = background_manager.update_if_needed()
+        
+        # Initialize ripple animation after first background load
+        if ripple_anim is None and background_manager.get_background_id() is not None:
+            ripple_anim = RippleAnimation(
+                canvas, root, screen_w, screen_h,
+                background_manager.get_background_id(), title_id
+            )
+        
+        # Update text colors if background changed
+        if text_color:
+            canvas.itemconfigure(title_id, fill=text_color)
+            canvas.itemconfigure(primary_id, fill=text_color)
+            canvas.itemconfigure(secondary_id, fill=text_color)
+        
+        # Trigger ripple effect on background updates (not first load)
+        if was_updated and ripple_anim:
+            ripple_anim.start()
 
         if trains is None:
             canvas.itemconfigure(primary_id, text="--")
@@ -452,6 +172,7 @@ def update():
 
 # === MAIN ===
 
-update_background_if_needed()
+# Initial background load
+background_manager.update_if_needed()
 update()
 root.mainloop()
