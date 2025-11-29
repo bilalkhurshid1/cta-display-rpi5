@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import os
+import shutil
 from datetime import datetime
-from flask import Flask, request, render_template_string, abort, send_from_directory
+from flask import Flask, request, render_template_string, abort, send_from_directory, jsonify
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
@@ -20,6 +21,7 @@ if not token:
 # Where cta-display.py will read the background from:
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 BG_PATH = os.path.join(BASE_DIR, "background", "current.jpg")
+DEFAULT_IMAGE_PATH = os.path.join(BASE_DIR, "images", "default.jpg")
 
 ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp", "HEIC", "heic"}
 
@@ -128,6 +130,39 @@ UPLOAD_FORM_HTML = """
 					animation: none;
 				}
 			}
+
+			/* Reset button styles */
+			#reset-button {
+				position: fixed;
+				bottom: 20px;
+				right: 20px;
+				padding: 12px 24px;
+				background: rgba(255, 255, 255, 0.9);
+				border: 2px solid #333;
+				border-radius: 8px;
+				color: #333;
+				font-size: 0.95rem;
+				font-weight: 600;
+				cursor: pointer;
+				transition: all 0.2s ease;
+				box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+			}
+
+			#reset-button:hover {
+				background: rgba(255, 255, 255, 1);
+				transform: translateY(-2px);
+				box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+			}
+
+			#reset-button:active {
+				transform: translateY(0);
+				box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+			}
+
+			#reset-button:disabled {
+				opacity: 0.5;
+				cursor: not-allowed;
+			}
 		</style>
 	</head>
 	<body>
@@ -158,12 +193,15 @@ UPLOAD_FORM_HTML = """
 					style="display: none"
 				/>
 			</form>
+
+			<button id="reset-button" type="button">Reset to Default</button>
 		</div>
 
 		<script>
 			const form = document.getElementById("upload-form");
 			const fileInput = document.getElementById("photo");
 			const imageButton = document.getElementById("image-upload-btn");
+			const resetButton = document.getElementById("reset-button");
 
 			imageButton.addEventListener("click", () => {
 				fileInput.click();
@@ -290,6 +328,40 @@ UPLOAD_FORM_HTML = """
 				}
 			`;
 			document.head.appendChild(style);
+
+			// Reset button handler
+			resetButton.addEventListener("click", () => {
+				resetButton.disabled = true;
+				resetButton.textContent = "Resetting...";
+
+				fetch(window.location.href.replace('/upload/', '/reset/'), {
+					method: "POST"
+				})
+					.then((response) => response.json())
+					.then((data) => {
+						if (data.success) {
+							resetButton.textContent = "Reset Successful!";
+							setTimeout(() => {
+								resetButton.textContent = "Reset to Default";
+								resetButton.disabled = false;
+							}, 2000);
+						} else {
+							resetButton.textContent = "Reset Failed";
+							setTimeout(() => {
+								resetButton.textContent = "Reset to Default";
+								resetButton.disabled = false;
+							}, 2000);
+						}
+					})
+					.catch((error) => {
+						console.error("Reset failed:", error);
+						resetButton.textContent = "Reset Failed";
+						setTimeout(() => {
+							resetButton.textContent = "Reset to Default";
+							resetButton.disabled = false;
+						}, 2000);
+					});
+			});
 		</script>
 	</body>
 </html>
@@ -334,6 +406,29 @@ def upload(secret: str):
     os.replace(tmp_path, BG_PATH)  # overwrite any existing background
 
     return render_template_string(UPLOAD_FORM_HTML, success=True, error=None)
+
+
+@app.route("/reset/<secret>", methods=["POST"])
+def reset_to_default(secret: str):
+    """Reset background to default image"""
+    # Wrong token? Pretend this doesn't exist.
+    if secret != token:
+        abort(404)
+
+    try:
+        # Check if default image exists
+        if not os.path.exists(DEFAULT_IMAGE_PATH):
+            return jsonify({"success": False, "error": "Default image not found"}), 404
+
+        # Create background directory if it doesn't exist
+        os.makedirs(os.path.dirname(BG_PATH), exist_ok=True)
+
+        # Copy default image to background
+        shutil.copy2(DEFAULT_IMAGE_PATH, BG_PATH)
+
+        return jsonify({"success": True, "message": "Background reset to default"}), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @app.route("/health", methods=["GET"])
