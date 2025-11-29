@@ -2,7 +2,7 @@
 import os
 import shutil
 from datetime import datetime
-from flask import Flask, request, render_template_string, abort, send_from_directory, jsonify
+from flask import Flask, request, render_template, abort, send_from_directory, jsonify
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
@@ -25,354 +25,10 @@ DEFAULT_IMAGE_PATH = os.path.join(BASE_DIR, "images", "default.jpg")
 
 ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp", "HEIC", "heic"}
 
-
-# === HTML TEMPLATE ===
-
-UPLOAD_FORM_HTML = """
-<!DOCTYPE html>
-<html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<title>CTA Background Upload</title>
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<style>
-			body {
-				margin: 0;
-				padding: 0;
-				font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-					sans-serif;
-				background-image: url(/images/henderson.png);
-				background-size: 100% 100%;
-				background-position: center center;
-				background-repeat: no-repeat;
-				min-height: 100svh;
-			}
-
-			/* Center the upload control */
-			.container {
-				min-height: 100svh;
-				display: flex;
-				align-items: center;
-				justify-content: center;
-				text-align: center;
-			}
-
-			/* Image button resets */
-			#image-upload-btn {
-				background: transparent;
-				border: none;
-				padding: 0;
-				margin: 0;
-				line-height: 0;
-				cursor: pointer;
-				-webkit-tap-highlight-color: transparent;
-				transform: translateY(-75px);
-			}
-
-			#image-upload-btn:disabled {
-				opacity: 0.6;
-				cursor: default;
-			}
-
-			/* Float wrapper carries the hover animation */
-			.float-wrap {
-				display: inline-block;
-				animation: float 3s ease-in-out infinite;
-				will-change: transform;
-			}
-
-			/* Responsive red button image */
-			#red-button-img {
-				display: block;
-				width: min(60vw, 320px);
-				height: auto;
-				filter: blur(0.3px) drop-shadow(0 0 8px rgba(255, 0, 0, 0.5))
-					drop-shadow(0 0 16px rgba(255, 0, 0, 0.35));
-				will-change: transform, filter;
-			}
-
-			@media (max-width: 360px) {
-				#red-button-img {
-					width: 70vw;
-				}
-			}
-
-			/* Hover/active states: slightly stronger glow and lift */
-			#image-upload-btn:hover #red-button-img,
-			#image-upload-btn:focus-visible #red-button-img {
-				filter: blur(0.3px) drop-shadow(0 0 10px rgba(255, 0, 0, 0.7))
-					drop-shadow(0 0 20px rgba(255, 0, 0, 0.5));
-				transform: translateY(-3px);
-			}
-
-			#image-upload-btn:active #red-button-img {
-				transform: translateY(4px);
-				filter: blur(0.3px) drop-shadow(0 0 12px rgba(255, 0, 0, 0.8))
-					drop-shadow(0 0 24px rgba(255, 0, 0, 0.6));
-			}
-
-			/* Gentle float animation */
-			@keyframes float {
-				0% {
-					transform: translateY(0);
-				}
-				50% {
-					transform: translateY(-6px);
-				}
-				100% {
-					transform: translateY(0);
-				}
-			}
-
-			/* Respect reduced motion */
-			@media (prefers-reduced-motion: reduce) {
-				.float-wrap {
-					animation: none;
-				}
-			}
-
-			/* Reset button styles */
-			#reset-button {
-				position: fixed;
-				bottom: 20px;
-				right: 20px;
-				padding: 12px 24px;
-				background: rgba(255, 255, 255, 0.9);
-				border: 2px solid #333;
-				border-radius: 8px;
-				color: #333;
-				font-size: 0.95rem;
-				font-weight: 600;
-				cursor: pointer;
-				transition: all 0.2s ease;
-				box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-			}
-
-			#reset-button:hover {
-				background: rgba(255, 255, 255, 1);
-				transform: translateY(-2px);
-				box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-			}
-
-			#reset-button:active {
-				transform: translateY(0);
-				box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-			}
-
-			#reset-button:disabled {
-				opacity: 0.5;
-				cursor: not-allowed;
-			}
-		</style>
-	</head>
-	<body>
-		<div class="container" style="text-align: center">
-			<button
-				id="image-upload-btn"
-				type="button"
-				aria-label="Upload background"
-				style="background-color: transparent; border: none"
-			>
-				<span class="float-wrap">
-					<img id="red-button-img" src="/images/redbutton.png" alt="Upload" />
-				</span>
-			</button>
-
-			<form
-				method="POST"
-				action=""
-				enctype="multipart/form-data"
-				id="upload-form"
-			>
-				<input
-					type="file"
-					id="photo"
-					name="photo"
-					accept="image/*"
-					required
-					style="display: none"
-				/>
-			</form>
-
-			<button id="reset-button" type="button">Reset to Default</button>
-		</div>
-
-		<script>
-			const form = document.getElementById("upload-form");
-			const fileInput = document.getElementById("photo");
-			const imageButton = document.getElementById("image-upload-btn");
-			const resetButton = document.getElementById("reset-button");
-
-			imageButton.addEventListener("click", () => {
-				fileInput.click();
-			});
-
-			fileInput.addEventListener("change", (e) => {
-				if (fileInput.files && fileInput.files.length > 0) {
-					const file = fileInput.files[0];
-					const reader = new FileReader();
-					const containerWidth = 320;
-					const containerHeight = 240;
-					const imageWidth = 280;
-					const imageHeight = 200;
-
-					reader.onload = function (e) {
-						imageButton.innerHTML = `
-							<div style="position: relative; width: ${containerWidth}px; height: ${containerHeight}px; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box;">
-								<div style="color: #fff; font-size: 1.2rem; font-weight: 600; text-align: center;">Thank you!</div>
-							</div>
-						`;
-
-						const formData = new FormData(form);
-
-						fetch(form.action || window.location.href, {
-							method: "POST",
-							body: formData,
-						})
-							.then((response) => response.text())
-							.then(() => {
-								imageButton.innerHTML = `
-								<div style="position: relative; width: ${containerWidth}px; height: ${containerHeight}px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; gap: 10px;">
-									<div style="color: #fff; font-size: 1.2rem; font-weight: 600; text-align: center;">Background updated!</div>
-									<img src="${e.target.result}" alt="Preview" style="width: 60px; height: 60px; object-fit: contain;">
-								</div>
-							`;
-
-								// Start flying images animation
-								startFlyingImages();
-							})
-							.catch((error) => {
-								console.error("Upload failed:", error);
-								imageButton.innerHTML = `
-								<div style="position: relative; width: ${containerWidth}px; height: ${containerHeight}px; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box;">
-									<div style="color: #ff6b6b; font-size: 1.2rem; font-weight: 600; text-align: center;">Upload failed</div>
-								</div>
-							`;
-							});
-					};
-
-					reader.readAsDataURL(file);
-				}
-			});
-
-			// Flying images animation function
-			function startFlyingImages() {
-				const images = [
-					"/images/joey.png",
-					"/images/bilal.png",
-					"/images/clark.png",
-					"/images/harry.png",
-				];
-
-				let counter = 0;
-				for (let i = 0; i < 10; i++) {
-					images.forEach((src) => {
-						setTimeout(() => {
-							createFlyingImage(src);
-						}, counter * 150);
-						counter++;
-					});
-				}
-			}
-
-			function createFlyingImage(src) {
-				const img = document.createElement("img");
-				img.src = src;
-				img.style.cssText = `
-					position: fixed;
-					top: ${Math.random() * 90}%;
-					width: 150px;
-					height: 150px;
-					object-fit: contain;
-					z-index: 1000;
-					pointer-events: none;
-				`;
-
-				// Random direction: right to left or left to right
-				const direction = Math.random() > 0.5 ? "rtl" : "ltr";
-				if (direction === "rtl") {
-					img.style.right = "-200px";
-					img.style.animation = "flyRightToLeft 3s linear forwards";
-				} else {
-					img.style.left = "-200px";
-					img.style.animation = "flyLeftToRight 3s linear forwards";
-				}
-
-				document.body.appendChild(img);
-
-				// Remove image after animation completes
-				setTimeout(() => {
-					img.remove();
-				}, 3000);
-			}
-
-			// Add CSS animations
-			const style = document.createElement("style");
-			style.textContent = `
-				@keyframes flyRightToLeft {
-					from {
-						transform: translateX(0) rotate(0deg);
-					}
-					to {
-						transform: translateX(-120vw) rotate(720deg);
-					}
-				}
-				
-				@keyframes flyLeftToRight {
-					from {
-						transform: translateX(0) rotate(0deg);
-					}
-					to {
-						transform: translateX(120vw) rotate(720deg);
-					}
-				}
-			`;
-			document.head.appendChild(style);
-
-			// Reset button handler
-			resetButton.addEventListener("click", () => {
-				resetButton.disabled = true;
-				resetButton.textContent = "Resetting...";
-
-				fetch(window.location.href.replace('/upload/', '/reset/'), {
-					method: "POST"
-				})
-					.then((response) => response.json())
-					.then((data) => {
-						if (data.success) {
-							resetButton.textContent = "Reset Successful!";
-							setTimeout(() => {
-								resetButton.textContent = "Reset to Default";
-								resetButton.disabled = false;
-							}, 2000);
-						} else {
-							resetButton.textContent = "Reset Failed";
-							setTimeout(() => {
-								resetButton.textContent = "Reset to Default";
-								resetButton.disabled = false;
-							}, 2000);
-						}
-					})
-					.catch((error) => {
-						console.error("Reset failed:", error);
-						resetButton.textContent = "Reset Failed";
-						setTimeout(() => {
-							resetButton.textContent = "Reset to Default";
-							resetButton.disabled = false;
-						}, 2000);
-					});
-			});
-		</script>
-	</body>
-</html>
-"""
-
-
 # === HELPERS ===
 
 def allowed_file(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
-
 
 # === ROUTES ===
 
@@ -383,18 +39,18 @@ def upload(secret: str):
         abort(404)
 
     if request.method == "GET":
-        return render_template_string(UPLOAD_FORM_HTML, success=False, error=None)
+        return render_template("upload.html")
 
     # POST: process upload
     if "photo" not in request.files:
-        return render_template_string(UPLOAD_FORM_HTML, success=False, error="No file provided"), 400
+        return render_template("upload.html"), 400
 
     file = request.files["photo"]
     if file.filename == "":
-        return render_template_string(UPLOAD_FORM_HTML, success=False, error="No file selected"), 400
+        return render_template("upload.html"), 400
 
     if not allowed_file(file.filename):
-        return render_template_string(UPLOAD_FORM_HTML, success=False, error="Unsupported file type"), 400
+        return render_template("upload.html"), 400
 
     os.makedirs(os.path.dirname(BG_PATH), exist_ok=True)
 
@@ -405,7 +61,7 @@ def upload(secret: str):
     file.save(tmp_path)
     os.replace(tmp_path, BG_PATH)  # overwrite any existing background
 
-    return render_template_string(UPLOAD_FORM_HTML, success=True, error=None)
+    return render_template("upload.html")
 
 
 @app.route("/reset/<secret>", methods=["POST"])
@@ -430,18 +86,15 @@ def reset_to_default(secret: str):
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
-
 @app.route("/health", methods=["GET"])
 def health():
     return {"status": "ok"}, 200
-
 
 @app.route("/images/<path:filename>")
 def serve_image(filename):
     """Serve images from the images directory"""
     images_dir = os.path.join(BASE_DIR, "images")
     return send_from_directory(images_dir, filename)
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001)
