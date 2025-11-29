@@ -180,6 +180,84 @@ def on_touch(x, y):
     spawn_bubbles(x, y)
 
 
+# === RIPPLE TRANSITION ===
+
+ripples = []  # List of ripple dicts: {id, center_x, center_y, radius, max_radius, speed}
+ripple_anim_running = False
+
+
+def start_ripple_transition():
+    """Start ripple effect from center of screen."""
+    center_x = screen_w // 2
+    center_y = screen_h // 2
+    
+    # Calculate max radius to cover entire screen from center
+    max_radius = int((screen_w**2 + screen_h**2)**0.5 / 2) + 50
+    
+    # Create 3 ripples with staggered starts
+    for i in range(3):
+        ripple_id = canvas.create_oval(
+            center_x, center_y,
+            center_x, center_y,
+            outline="white",
+            width=3,
+            fill=""
+        )
+        # Layer ripples above background but below text
+        canvas.tag_raise(ripple_id, background_image_id)
+        canvas.tag_lower(ripple_id, title_id)
+        
+        ripples.append({
+            "id": ripple_id,
+            "center_x": center_x,
+            "center_y": center_y,
+            "radius": -i * 30,  # Stagger start times
+            "max_radius": max_radius,
+            "speed": 5,  # Pixels per frame
+        })
+    
+    # Start animation if not already running
+    global ripple_anim_running
+    if not ripple_anim_running:
+        ripple_anim_running = True
+        animate_ripples()
+
+
+def animate_ripples():
+    """Update ripple expansion animation."""
+    global ripple_anim_running
+    
+    to_remove = []
+    
+    for ripple in ripples:
+        ripple["radius"] += ripple["speed"]
+        
+        # Remove if fully expanded
+        if ripple["radius"] > ripple["max_radius"]:
+            canvas.delete(ripple["id"])
+            to_remove.append(ripple)
+            continue
+        
+        # Only draw if radius is positive
+        if ripple["radius"] > 0:
+            # Update oval coordinates
+            x1 = ripple["center_x"] - ripple["radius"]
+            y1 = ripple["center_y"] - ripple["radius"]
+            x2 = ripple["center_x"] + ripple["radius"]
+            y2 = ripple["center_y"] + ripple["radius"]
+            canvas.coords(ripple["id"], x1, y1, x2, y2)
+    
+    # Remove finished ripples
+    for ripple in to_remove:
+        ripples.remove(ripple)
+    
+    # Continue animation if ripples remain
+    if ripples:
+        root.after(33, animate_ripples)  # ~30fps
+    else:
+        ripple_anim_running = False
+
+
 # === LUMINANCE / TEXT THEME HELPERS ===
 
 def compute_luminance(img: Image.Image) -> float:
@@ -249,6 +327,8 @@ def update_background_if_needed():
         )
     else:
         canvas.itemconfig(background_image_id, image=background_image)
+        # Trigger ripple transition for image changes (not first load)
+        start_ripple_transition()
 
     canvas.tag_lower(background_image_id)  # send background behind text
 
