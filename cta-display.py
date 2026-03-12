@@ -14,6 +14,7 @@ from animations import BubbleAnimation, RippleAnimation
 from cta_api import CTAClient
 from image_utils import BackgroundManager
 from weather_api import WeatherClient
+from weather_widget import WeatherWidget
 
 # === CONFIG ===
 load_dotenv()
@@ -83,24 +84,6 @@ secondary_id = canvas.create_text(
     fill="white",
 )
 
-weather_condition_id = canvas.create_text(
-    screen_w - 20,
-    30,
-    text="",
-    font=("Helvetica", 20),
-    fill="white",
-    anchor="ne",
-)
-
-weather_temp_id = canvas.create_text(
-    screen_w - 20,
-    60,
-    text="",
-    font=("Helvetica", 16),
-    fill="white",
-    anchor="ne",
-)
-
 # === INITIALIZE COMPONENTS ===
 
 # Background manager
@@ -116,6 +99,10 @@ cta_client = CTAClient(CTA_KEY, PAULINA_LOOP_ROUTE_ID)
 # Weather client
 weather_client = WeatherClient()
 weather_counter = 0
+current_text_color = "white"
+
+# Weather widget
+weather_widget = WeatherWidget(canvas, screen_w)
 
 # Touch/click handlers
 def on_touch(x: int, y: int):
@@ -137,18 +124,15 @@ def update_weather():
     """Fetch and display current weather."""
     weather = weather_client.get_weather()
     if weather:
-        canvas.itemconfigure(
-            weather_condition_id,
-            text=f"{weather['condition']}  {weather['temp']}°F",
-        )
-        canvas.itemconfigure(
-            weather_temp_id,
-            text=f"H: {weather['high']}°  L: {weather['low']}°",
+        weather_widget.redraw(
+            weather["condition"], weather["temp"],
+            weather["high"], weather["low"],
+            current_text_color,
         )
 
 
 def update():
-    global ripple_anim, weather_counter
+    global ripple_anim, weather_counter, current_text_color
 
     try:
         trains = cta_client.get_next_trains()
@@ -167,8 +151,8 @@ def update():
             canvas.itemconfigure(primary_id, fill=text_color)
             canvas.itemconfigure(secondary_id, fill=text_color)
             canvas.itemconfigure(leave_now_id, fill=text_color)
-            canvas.itemconfigure(weather_condition_id, fill=text_color)
-            canvas.itemconfigure(weather_temp_id, fill=text_color)
+            current_text_color = text_color
+            weather_widget.recolor(text_color)
 
         # Trigger ripple effect on background updates (not first load)
         if was_updated and ripple_anim:
