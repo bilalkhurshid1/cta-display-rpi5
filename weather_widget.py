@@ -63,9 +63,9 @@ class WeatherWidget:
         """Update fill/outline color of all tracked canvas items."""
         for item_id in self._item_ids:
             item_type = self._canvas.type(item_id)
-            if item_type == "text":
+            if item_type in ("text", "line"):
                 self._canvas.itemconfigure(item_id, fill=color)
-            else:
+            else:  # oval, polygon
                 self._canvas.itemconfigure(item_id, outline=color, fill="")
 
     # ------------------------------------------------------------------ #
@@ -85,16 +85,36 @@ class WeatherWidget:
             y2 = sun_cy + r_outer * sin_a
             self._ids(self._canvas.create_line(x1, y1, x2, y2, fill=color, width=2))
 
-    def _draw_cloud_ovals(self, color: str):
+    def _draw_cloud_polygon(self, color: str):
+        """Draw cloud silhouette as a single polygon (no internal crossing lines)."""
         cx, cy = self._cx, self._cy
-        self._ids(
-            self._canvas.create_oval(cx - 35, cy - 16, cx + 35, cy + 16,
-                                     outline=color, fill=""),
-            self._canvas.create_oval(cx - 42, cy - 34, cx - 2, cy + 6,
-                                     outline=color, fill=""),
-            self._canvas.create_oval(cx, cy - 28, cx + 32, cy + 4,
-                                     outline=color, fill=""),
-        )
+        pts = []
+
+        def add_arc(bx, by, r, n=14):
+            # Traces the top arc of a bump (180° → 360° in standard math coords).
+            # At 180°: leftmost point; at 270°: topmost (y−r on screen); at 360°: rightmost.
+            for i in range(n + 1):
+                deg = 180 + 180 * i / n
+                rad = math.radians(deg)
+                pts.append(bx + r * math.cos(rad))
+                pts.append(by + r * math.sin(rad))
+
+        # Bottom-left corner → up left side to bump 1 start
+        pts += [cx - 33, cy + 10, cx - 33, cy - 4]
+        # Bump 1 (left):   center (cx-20, cy-4),  r=13 → spans cx-33..cx-7
+        add_arc(cx - 20, cy - 4, 13)
+        # Valley into bump 2
+        pts += [cx - 14, cy - 14]
+        # Bump 2 (center): center (cx,    cy-14), r=14 → spans cx-14..cx+14
+        add_arc(cx, cy - 14, 14)
+        # Valley into bump 3
+        pts += [cx + 8, cy - 6]
+        # Bump 3 (right):  center (cx+20, cy-6),  r=12 → spans cx+8..cx+32
+        add_arc(cx + 20, cy - 6, 12)
+        # Bottom-right corner (polygon auto-closes across the flat bottom)
+        pts += [cx + 33, cy + 10]
+
+        self._ids(self._canvas.create_polygon(*pts, outline=color, fill="", width=2))
 
     def _draw_clear(self, temp: int, high: int, low: int, color: str):
         cx, cy = self._cx, self._cy
@@ -120,7 +140,7 @@ class WeatherWidget:
                                            outline=color, fill=""))
         self._draw_sun_rays(sun_cx, sun_cy, 18, 26, color)
         # Full cloud on top
-        self._draw_cloud_ovals(color)
+        self._draw_cloud_polygon(color)
         # Temp inside cloud
         self._ids(self._canvas.create_text(cx, cy, text=f"{temp}°",
                                            font=("Helvetica", 22, "bold"), fill=color))
@@ -132,7 +152,7 @@ class WeatherWidget:
     def _draw_cloud_with_labels(self, temp: int, high: int, low: int,
                                 color: str, precip: bool):
         cx, cy = self._cx, self._cy
-        self._draw_cloud_ovals(color)
+        self._draw_cloud_polygon(color)
         self._ids(self._canvas.create_text(cx, cy, text=f"{temp}°",
                                            font=("Helvetica", 22, "bold"), fill=color))
         hl_y = cy + 52 if precip else cy + 28
@@ -142,7 +162,7 @@ class WeatherWidget:
 
     def _draw_foggy(self, temp: int, high: int, low: int, color: str):
         cx, cy = self._cx, self._cy
-        self._draw_cloud_ovals(color)
+        self._draw_cloud_polygon(color)
         self._ids(self._canvas.create_text(cx, cy, text=f"{temp}°",
                                            font=("Helvetica", 22, "bold"), fill=color))
         # Fog lines
@@ -155,7 +175,7 @@ class WeatherWidget:
 
     def _draw_rain(self, temp: int, high: int, low: int, color: str):
         cx, cy = self._cx, self._cy
-        self._draw_cloud_ovals(color)
+        self._draw_cloud_polygon(color)
         self._ids(self._canvas.create_text(cx, cy, text=f"{temp}°",
                                            font=("Helvetica", 22, "bold"), fill=color))
         # Rain drops
@@ -171,7 +191,7 @@ class WeatherWidget:
 
     def _draw_snow(self, temp: int, high: int, low: int, color: str):
         cx, cy = self._cx, self._cy
-        self._draw_cloud_ovals(color)
+        self._draw_cloud_polygon(color)
         self._ids(self._canvas.create_text(cx, cy, text=f"{temp}°",
                                            font=("Helvetica", 22, "bold"), fill=color))
         # Snow asterisks (3 crossing lines per flake)
@@ -190,7 +210,7 @@ class WeatherWidget:
 
     def _draw_thunder(self, temp: int, high: int, low: int, color: str):
         cx, cy = self._cx, self._cy
-        self._draw_cloud_ovals(color)
+        self._draw_cloud_polygon(color)
         self._ids(self._canvas.create_text(cx, cy, text=f"{temp}°",
                                            font=("Helvetica", 22, "bold"), fill=color))
         # Lightning bolt polygon
