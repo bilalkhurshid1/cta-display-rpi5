@@ -86,13 +86,14 @@ class WeatherWidget:
             self._ids(self._canvas.create_line(x1, y1, x2, y2, fill=color, width=2))
 
     def _draw_cloud_polygon(self, color: str):
-        """Draw cloud silhouette as a single polygon (no internal crossing lines)."""
+        """Draw cloud silhouette as a single polygon (no internal crossing lines).
+        Bumps sit on top; a tall rectangular body below holds the temp text.
+        Body interior spans roughly cy-10 to cy+22 vertically.
+        """
         cx, cy = self._cx, self._cy
         pts = []
 
         def add_arc(bx, by, r, n=14):
-            # Traces the top arc of a bump (180° → 360° in standard math coords).
-            # At 180°: leftmost point; at 270°: topmost (y−r on screen); at 360°: rightmost.
             for i in range(n + 1):
                 deg = 180 + 180 * i / n
                 rad = math.radians(deg)
@@ -100,19 +101,19 @@ class WeatherWidget:
                 pts.append(by + r * math.sin(rad))
 
         # Bottom-left corner → up left side to bump 1 start
-        pts += [cx - 33, cy + 10, cx - 33, cy - 4]
-        # Bump 1 (left):   center (cx-20, cy-4),  r=13 → spans cx-33..cx-7
-        add_arc(cx - 20, cy - 4, 13)
+        pts += [cx - 33, cy + 22, cx - 33, cy - 10]
+        # Bump 1 (left):   center (cx-20, cy-10), r=13
+        add_arc(cx - 20, cy - 10, 13)
         # Valley into bump 2
-        pts += [cx - 14, cy - 14]
-        # Bump 2 (center): center (cx,    cy-14), r=14 → spans cx-14..cx+14
-        add_arc(cx, cy - 14, 14)
+        pts += [cx - 14, cy - 20]
+        # Bump 2 (center): center (cx, cy-20), r=14
+        add_arc(cx, cy - 20, 14)
         # Valley into bump 3
-        pts += [cx + 8, cy - 6]
-        # Bump 3 (right):  center (cx+20, cy-6),  r=12 → spans cx+8..cx+32
-        add_arc(cx + 20, cy - 6, 12)
+        pts += [cx + 8, cy - 12]
+        # Bump 3 (right):  center (cx+20, cy-12), r=12
+        add_arc(cx + 20, cy - 12, 12)
         # Bottom-right corner (polygon auto-closes across the flat bottom)
-        pts += [cx + 33, cy + 10]
+        pts += [cx + 33, cy + 22]
 
         self._ids(self._canvas.create_polygon(*pts, outline=color, fill="", width=2))
 
@@ -141,9 +142,9 @@ class WeatherWidget:
         self._draw_sun_rays(sun_cx, sun_cy, 18, 26, color)
         # Full cloud on top
         self._draw_cloud_polygon(color)
-        self._ids(self._canvas.create_text(cx, cy + 18, text=f"{temp}°",
+        self._ids(self._canvas.create_text(cx, cy + 7, text=f"{temp}°",
                                            font=("Helvetica", 22, "bold"), fill=color))
-        self._ids(self._canvas.create_text(cx, cy + 38,
+        self._ids(self._canvas.create_text(cx, cy + 36,
                                            text=f"{high}°/{low}°",
                                            font=("Helvetica", 13), fill=color))
 
@@ -151,10 +152,10 @@ class WeatherWidget:
                                 color: str, precip: bool):
         cx, cy = self._cx, self._cy
         self._draw_cloud_polygon(color)
-        # Temp below cloud bottom (cy+10), not inside where outline would cross it
-        self._ids(self._canvas.create_text(cx, cy + 18, text=f"{temp}°",
+        # Temp centered in the cloud body (midpoint of cy-10..cy+22)
+        self._ids(self._canvas.create_text(cx, cy + 7, text=f"{temp}°",
                                            font=("Helvetica", 22, "bold"), fill=color))
-        hl_y = cy + 56 if precip else cy + 38
+        hl_y = cy + 60 if precip else cy + 36
         self._ids(self._canvas.create_text(cx, hl_y,
                                            text=f"{high}°/{low}°",
                                            font=("Helvetica", 13), fill=color))
@@ -162,67 +163,67 @@ class WeatherWidget:
     def _draw_foggy(self, temp: int, high: int, low: int, color: str):
         cx, cy = self._cx, self._cy
         self._draw_cloud_polygon(color)
-        self._ids(self._canvas.create_text(cx, cy + 18, text=f"{temp}°",
+        self._ids(self._canvas.create_text(cx, cy + 7, text=f"{temp}°",
                                            font=("Helvetica", 22, "bold"), fill=color))
-        # Fog lines
-        for y_offset in [cy + 36, cy + 44, cy + 52]:
+        # Fog lines below cloud bottom (cy+22)
+        for y_offset in [cy + 28, cy + 36, cy + 44]:
             self._ids(self._canvas.create_line(cx - 25, y_offset, cx + 25, y_offset,
                                                fill=color, width=2))
-        self._ids(self._canvas.create_text(cx, cy + 64,
+        self._ids(self._canvas.create_text(cx, cy + 56,
                                            text=f"{high}°/{low}°",
                                            font=("Helvetica", 13), fill=color))
 
     def _draw_rain(self, temp: int, high: int, low: int, color: str):
         cx, cy = self._cx, self._cy
         self._draw_cloud_polygon(color)
-        self._ids(self._canvas.create_text(cx, cy + 18, text=f"{temp}°",
+        self._ids(self._canvas.create_text(cx, cy + 7, text=f"{temp}°",
                                            font=("Helvetica", 22, "bold"), fill=color))
-        # Rain drops
+        # Rain drops below cloud bottom (cy+22)
         offsets = [(-20, 0), (0, 0), (20, 0), (-10, 14), (10, 14)]
         for dx, dy in offsets:
             self._ids(self._canvas.create_line(
-                cx + dx - 1, cy + 36 + dy,
-                cx + dx + 1, cy + 44 + dy,
+                cx + dx - 1, cy + 28 + dy,
+                cx + dx + 1, cy + 36 + dy,
                 fill=color, width=2))
-        self._ids(self._canvas.create_text(cx, cy + 66,
+        self._ids(self._canvas.create_text(cx, cy + 60,
                                            text=f"{high}°/{low}°",
                                            font=("Helvetica", 13), fill=color))
 
     def _draw_snow(self, temp: int, high: int, low: int, color: str):
         cx, cy = self._cx, self._cy
         self._draw_cloud_polygon(color)
-        self._ids(self._canvas.create_text(cx, cy + 18, text=f"{temp}°",
+        self._ids(self._canvas.create_text(cx, cy + 7, text=f"{temp}°",
                                            font=("Helvetica", 22, "bold"), fill=color))
-        # Snow asterisks (3 crossing lines per flake)
+        # Snow asterisks below cloud bottom (cy+22)
         offsets = [(-20, 0), (0, 0), (20, 0), (-10, 14), (10, 14)]
         for dx, dy in offsets:
-            ax, ay = cx + dx, cy + 38 + dy
+            ax, ay = cx + dx, cy + 30 + dy
             r = 4
             self._ids(
                 self._canvas.create_line(ax - r, ay, ax + r, ay, fill=color, width=1),
                 self._canvas.create_line(ax, ay - r, ax, ay + r, fill=color, width=1),
                 self._canvas.create_line(ax - r, ay - r, ax + r, ay + r, fill=color, width=1),
             )
-        self._ids(self._canvas.create_text(cx, cy + 66,
+        self._ids(self._canvas.create_text(cx, cy + 60,
                                            text=f"{high}°/{low}°",
                                            font=("Helvetica", 13), fill=color))
 
     def _draw_thunder(self, temp: int, high: int, low: int, color: str):
         cx, cy = self._cx, self._cy
         self._draw_cloud_polygon(color)
-        self._ids(self._canvas.create_text(cx, cy + 18, text=f"{temp}°",
+        self._ids(self._canvas.create_text(cx, cy + 7, text=f"{temp}°",
                                            font=("Helvetica", 22, "bold"), fill=color))
-        # Lightning bolt polygon
+        # Lightning bolt below cloud bottom (cy+22)
         points = [
-            cx - 5, cy + 36,
-            cx + 4, cy + 36,
-            cx + 0, cy + 48,
-            cx + 6, cy + 48,
-            cx - 5, cy + 64,
-            cx + 2, cy + 54,
-            cx - 2, cy + 54,
+            cx - 5, cy + 26,
+            cx + 4, cy + 26,
+            cx + 0, cy + 38,
+            cx + 6, cy + 38,
+            cx - 5, cy + 54,
+            cx + 2, cy + 44,
+            cx - 2, cy + 44,
         ]
         self._ids(self._canvas.create_polygon(*points, outline=color, fill="", width=2))
-        self._ids(self._canvas.create_text(cx, cy + 68,
+        self._ids(self._canvas.create_text(cx, cy + 60,
                                            text=f"{high}°/{low}°",
                                            font=("Helvetica", 13), fill=color))
