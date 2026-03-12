@@ -98,7 +98,7 @@ cta_client = CTAClient(CTA_KEY, PAULINA_LOOP_ROUTE_ID)
 
 # Weather client
 weather_client = WeatherClient()
-weather_counter = 0
+weather_counter = 1  # start at 1 so update() doesn't re-fetch on first cycle
 current_text_color = "white"
 
 # Weather widget
@@ -219,5 +219,6 @@ def update():
 
 # Initial background load
 background_manager.update_if_needed()
+root.after(0, update_weather)  # fetch weather immediately on first frame
 update()
 root.mainloop()
