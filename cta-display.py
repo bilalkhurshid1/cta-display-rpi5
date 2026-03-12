@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from animations import BubbleAnimation, RippleAnimation
 from cta_api import CTAClient
 from image_utils import BackgroundManager
+from weather_api import WeatherClient
 
 # === CONFIG ===
 load_dotenv()
@@ -66,12 +67,38 @@ primary_id = canvas.create_text(
     fill="white",
 )
 
+leave_now_id = canvas.create_text(
+    screen_w // 2,
+    screen_h // 2 + 70,
+    text="",
+    font=("Helvetica", 32, "bold"),
+    fill="white",
+)
+
 secondary_id = canvas.create_text(
     screen_w // 2,
     screen_h - 80,
     text="Loading…",
     font=("Helvetica", 28),
     fill="white",
+)
+
+weather_condition_id = canvas.create_text(
+    screen_w - 20,
+    30,
+    text="",
+    font=("Helvetica", 20),
+    fill="white",
+    anchor="ne",
+)
+
+weather_temp_id = canvas.create_text(
+    screen_w - 20,
+    60,
+    text="",
+    font=("Helvetica", 16),
+    fill="white",
+    anchor="ne",
 )
 
 # === INITIALIZE COMPONENTS ===
@@ -85,6 +112,10 @@ ripple_anim = None  # Will be initialized after first background load
 
 # CTA API client
 cta_client = CTAClient(CTA_KEY, PAULINA_LOOP_ROUTE_ID)
+
+# Weather client
+weather_client = WeatherClient()
+weather_counter = 0
 
 # Touch/click handlers
 def on_touch(x: int, y: int):
@@ -102,29 +133,54 @@ def format_minutes_text(minutes: int) -> str:
     return f"{minutes} {unit} away"
 
 
+def update_weather():
+    """Fetch and display current weather."""
+    weather = weather_client.get_weather()
+    if weather:
+        canvas.itemconfigure(
+            weather_condition_id,
+            text=f"{weather['condition']}  {weather['temp']}°F",
+        )
+        canvas.itemconfigure(
+            weather_temp_id,
+            text=f"H: {weather['high']}°  L: {weather['low']}°",
+        )
+
+
 def update():
-    global ripple_anim
-    
+    global ripple_anim, weather_counter
+
     try:
         trains = cta_client.get_next_trains()
         was_updated, text_color = background_manager.update_if_needed()
-        
+
         # Initialize ripple animation after first background load
         if ripple_anim is None and background_manager.get_background_id() is not None:
             ripple_anim = RippleAnimation(
                 canvas, root, screen_w, screen_h,
                 background_manager.get_background_id(), title_id
             )
-        
+
         # Update text colors if background changed
         if text_color:
             canvas.itemconfigure(title_id, fill=text_color)
             canvas.itemconfigure(primary_id, fill=text_color)
             canvas.itemconfigure(secondary_id, fill=text_color)
-        
+            canvas.itemconfigure(leave_now_id, fill=text_color)
+            canvas.itemconfigure(weather_condition_id, fill=text_color)
+            canvas.itemconfigure(weather_temp_id, fill=text_color)
+
         # Trigger ripple effect on background updates (not first load)
         if was_updated and ripple_anim:
             ripple_anim.start()
+
+        # Weather refresh every ~10 min (counter mod 40 at 15s intervals)
+        if weather_counter % 40 == 0:
+            update_weather()
+        weather_counter += 1
+
+        # Default: hide "Leave now!"
+        show_leave_now = False
 
         if trains is None:
             canvas.itemconfigure(primary_id, text="--")
@@ -145,6 +201,8 @@ def update():
                     primary_id,
                     text=format_minutes_text(first["minutes"]),
                 )
+                if first["minutes"] <= 4:
+                    show_leave_now = True
 
             if len(trains) > 1:
                 second = trains[1]
@@ -162,10 +220,13 @@ def update():
                     secondary_id, text="No additional trains"
                 )
 
+        canvas.itemconfigure(leave_now_id, text="Leave now!" if show_leave_now else "")
+
     except Exception as e:
         print(f"Unexpected error in update(): {e}")
         canvas.itemconfigure(primary_id, text="--")
         canvas.itemconfigure(secondary_id, text="Error")
+        canvas.itemconfigure(leave_now_id, text="")
 
     root.after(REFRESH_MS, update)
 
