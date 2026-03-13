@@ -57,7 +57,7 @@ class WeatherClient:
         params = {
             "latitude": self.lat,
             "longitude": self.lon,
-            "current": "temperature_2m,weather_code",
+            "current": "temperature_2m,weather_code,is_day",
             "daily": "temperature_2m_max,temperature_2m_min",
             "temperature_unit": "fahrenheit",
             "timezone": "America/Chicago",
@@ -84,6 +84,8 @@ class WeatherClient:
                 "high": round(daily["temperature_2m_max"][0]),
                 "low": round(daily["temperature_2m_min"][0]),
                 "condition": condition,
+                "weather_code": weather_code,
+                "is_day": bool(current.get("is_day", 1)),
             }
         except Exception as e:
             print(f"Error parsing Open-Meteo response: {e}")

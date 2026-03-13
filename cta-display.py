@@ -125,9 +125,9 @@ def update_weather():
     weather = weather_client.get_weather()
     if weather:
         weather_widget.redraw(
-            weather["condition"], weather["temp"],
+            weather["weather_code"], weather["temp"],
             weather["high"], weather["low"],
-            current_text_color,
+            current_text_color, weather["is_day"],
         )
 
 
