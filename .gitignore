@@ -5,6 +5,7 @@ __pycache__/
 *.pyc
 *.pyo
 *.log
-images/
+images/*
+!images/weather-icons/
 background/current.jpg
 .DS_Store
