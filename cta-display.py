@@ -185,7 +185,7 @@ def update():
                     primary_id,
                     text=format_minutes_text(first["minutes"]),
                 )
-                if first["minutes"] <= 4:
+                if 1 <= first["minutes"] <= 4:
                     show_leave_now = True
 
             if len(trains) > 1:
@@ -204,7 +204,7 @@ def update():
                     secondary_id, text="No additional trains"
                 )
 
-        canvas.itemconfigure(leave_now_id, text="Leave now!" if show_leave_now else "")
+        canvas.itemconfigure(leave_now_id, text="Leave now" if show_leave_now else "")
 
     except Exception as e:
         print(f"Unexpected error in update(): {e}")

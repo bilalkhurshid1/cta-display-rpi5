@@ -69,13 +69,13 @@ class WeatherWidget:
         # Temp to the right of the icon, vertically centered on cy
         temp_x = self._x
         self._item_ids.append(self._canvas.create_text(
-            temp_x, self._cy - 10, text=f"{temp}°",
+            temp_x, self._cy - 14, text=f"{temp}°",
             font=("Helvetica", 32, "bold"), fill=color, anchor="ne",
         ))
 
         # High/low below temp
         self._item_ids.append(self._canvas.create_text(
-            temp_x, self._cy + 20, text=f"{high}°/{low}°",
+            temp_x, self._cy + 26, text=f"{high}°/{low}°",
             font=("Helvetica", 16), fill=color, anchor="ne",
         ))
 
