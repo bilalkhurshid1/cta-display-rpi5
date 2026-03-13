@@ -38,14 +38,14 @@ _CODE_TO_ICON = {
 _DEFAULT_ICON = ("overcast-day.png", "overcast-night.png")
 
 ICON_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images", "weather-icons")
-ICON_SIZE = 64
+ICON_SIZE = 80
 
 
 class WeatherWidget:
     def __init__(self, canvas: tk.Canvas, screen_w: int):
         self._canvas = canvas
-        self._x = screen_w - 10  # right edge with 10px margin
-        self._y = 10              # top margin
+        self._x = screen_w - 20  # right edge with 20px margin
+        self._cy = 70             # vertical center, aligned with title
         self._item_ids: list[int] = []
         self._icon_cache: dict[str, ImageTk.PhotoImage] = {}
         self._current_photo: ImageTk.PhotoImage | None = None
@@ -57,28 +57,26 @@ class WeatherWidget:
         self._item_ids = []
 
         photo = self._get_icon(weather_code, is_day)
-        icon_x = self._x - ICON_SIZE  # icon right-aligned with some room for text
 
+        # Icon on the left side of the widget, vertically centered on cy
         if photo:
             self._current_photo = photo
             icon_id = self._canvas.create_image(
-                icon_x, self._y, image=photo, anchor="ne",
+                self._x - ICON_SIZE, self._cy, image=photo, anchor="e",
             )
             self._item_ids.append(icon_id)
 
-        # Temp to the right of the icon
+        # Temp to the right of the icon, vertically centered on cy
         temp_x = self._x
-        temp_y = self._y + 18
         self._item_ids.append(self._canvas.create_text(
-            temp_x, temp_y, text=f"{temp}°",
-            font=("Helvetica", 26, "bold"), fill=color, anchor="ne",
+            temp_x, self._cy - 10, text=f"{temp}°",
+            font=("Helvetica", 32, "bold"), fill=color, anchor="ne",
         ))
 
         # High/low below temp
-        hl_y = temp_y + 28
         self._item_ids.append(self._canvas.create_text(
-            temp_x, hl_y, text=f"{high}°/{low}°",
-            font=("Helvetica", 13), fill=color, anchor="ne",
+            temp_x, self._cy + 20, text=f"{high}°/{low}°",
+            font=("Helvetica", 16), fill=color, anchor="ne",
         ))
 
     def recolor(self, color: str):
